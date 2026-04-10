@@ -255,6 +255,13 @@ async def run_simulation():
         await sio.emit("sim_stopped", {})
 
 
+@app.get("/api/four-meme/tokens")
+async def four_meme_tokens():
+    from integrations.bitquery import query_four_meme_tokens
+    tokens = await query_four_meme_tokens(limit=20)
+    return {"tokens": tokens}
+
+
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "sim_running": sim_running}
