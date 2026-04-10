@@ -1,0 +1,12 @@
+pyproject.toml
+agent/__init__.py
+commentator/__init__.py
+darwin_meme.egg-info/PKG-INFO
+darwin_meme.egg-info/SOURCES.txt
+darwin_meme.egg-info/dependency_links.txt
+darwin_meme.egg-info/requires.txt
+darwin_meme.egg-info/top_level.txt
+data/__init__.py
+evolution/__init__.py
+market/__init__.py
+tests/__init__.py
