@@ -1,6 +1,6 @@
 "use client";
 
-import type { AgentData, TokenData, TradeData, EventData } from "@/lib/types";
+import type { AgentData, TokenData, TradeData, EventData, GenerationStats } from "@/lib/types";
 import { EcosystemCanvas } from "./EcosystemCanvas";
 import { GameHud } from "./GameHud";
 
@@ -13,6 +13,7 @@ interface GameViewProps {
   tick: number;
   commentary: string[];
   prevGeneration: number;
+  allStats?: GenerationStats[];
 }
 
 export function GameView({
@@ -24,6 +25,7 @@ export function GameView({
   tick,
   commentary,
   prevGeneration,
+  allStats = [],
 }: GameViewProps) {
   return (
     <div className="relative w-full h-full overflow-hidden">
@@ -43,6 +45,8 @@ export function GameView({
         generation={generation}
         tick={tick}
         commentary={commentary}
+        allStats={allStats}
+        prevGeneration={prevGeneration}
       />
     </div>
   );

@@ -12,7 +12,22 @@ import {
   drawEventEffect,
   drawEvoBanner,
   drawGrassBackground,
+  drawTradeLine,
+  drawPhaseIndicator,
+  drawTradeLog,
+  type SimPhase,
+  type TradeLogEntry,
 } from "./entities";
+
+interface ActiveTradeLine {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  timer: number;
+  maxTimer: number;
+}
 
 interface EcosystemCanvasProps {
   agents: AgentData[];
@@ -42,6 +57,12 @@ export function EcosystemCanvas({
   const lastTime = useRef<number>(0);
   const animFrameId = useRef<number>(0);
   const processedTick = useRef<number>(-1);
+
+  // New refs for enhanced features
+  const tradeLog = useRef<TradeLogEntry[]>([]);
+  const activeTradeLines = useRef<ActiveTradeLine[]>([]);
+  const phase = useRef<SimPhase>("trading");
+  const dashOffset = useRef<number>(0);
 
   const syncAgents = useCallback((canvasW: number, canvasH: number) => {
     const currentIds = new Set(agents.map((a) => a.agent_id));
@@ -99,7 +120,7 @@ export function EcosystemCanvas({
         entity = new TokenEntity(token.token_id, token.name, token.theme, canvasW, canvasH);
         entityMap.set(token.token_id, entity);
       }
-      entity.syncFromData(token.bonding_progress, token.state);
+      entity.syncFromData(token.bonding_progress, token.state, token.holder_count);
 
       if (entity.graduating && entity.opacity > 0.5) {
         // Graduation = gold coin explosion!
@@ -135,19 +156,62 @@ export function EcosystemCanvas({
         for (let i = 0; i < 5; i++) {
           particles.current.push(new Particle(tokenEntity.x + 30, tokenEntity.y, "#ffd700", 2, true));
         }
+        // Trade log entry
+        tradeLog.current.push({
+          text: `${trade.agent_name} bought ${trade.token_name || "?"} ($${trade.cost.toFixed(1)})`,
+          color: "#22c55e",
+          time: Date.now(),
+        });
+        // Trade line
+        activeTradeLines.current.push({
+          x1: agentEntity.x,
+          y1: agentEntity.y,
+          x2: tokenEntity.x + 30,
+          y2: tokenEntity.y + 25,
+          color: "#22c55e",
+          timer: 0,
+          maxTimer: 60,
+        });
       } else if (trade.type === "sell" && tokenEntity) {
         agentEntity.pushAway(tokenEntity.x + 30, tokenEntity.y + 25);
         agentEntity.showAction("-SELL " + (trade.token_name || ""), "#ef4444");
         for (let i = 0; i < 3; i++) {
           particles.current.push(new Particle(agentEntity.x, agentEntity.y, "#ef4444", 1.5, true));
         }
+        // Trade log entry
+        tradeLog.current.push({
+          text: `${trade.agent_name} sold ${trade.token_name || "?"} ($${trade.cost.toFixed(1)})`,
+          color: "#ef4444",
+          time: Date.now(),
+        });
+        // Trade line
+        activeTradeLines.current.push({
+          x1: agentEntity.x,
+          y1: agentEntity.y,
+          x2: tokenEntity.x + 30,
+          y2: tokenEntity.y + 25,
+          color: "#ef4444",
+          timer: 0,
+          maxTimer: 45,
+        });
       } else if (trade.type === "create") {
         agentEntity.showAction("NEW: " + (trade.token_name || ""), "#3b82f6");
         agentEntity.showSpeech("Opening shop!");
         for (let i = 0; i < 8; i++) {
           particles.current.push(new Particle(agentEntity.x, agentEntity.y, "#3b82f6", 2, false));
         }
+        // Trade log entry
+        tradeLog.current.push({
+          text: `${trade.agent_name} created ${trade.token_name || "?"}`,
+          color: "#3b82f6",
+          time: Date.now(),
+        });
       }
+    }
+
+    // Trim trade log to last 20
+    if (tradeLog.current.length > 20) {
+      tradeLog.current = tradeLog.current.slice(-20);
     }
   }, [trades, tick]);
 
@@ -167,15 +231,28 @@ export function EcosystemCanvas({
     }
   }, [events]);
 
+  // Phase detection based on tick and generation changes
   useEffect(() => {
     if (generation > prevGeneration && prevGeneration >= 0) {
+      // Generation just changed — we're evolving
+      phase.current = "evolving";
       bannerRef.current = {
         text: `Generation ${prevGeneration} \u2192 ${generation}`,
+        subText: "Survival of the Fittest \u2014 Adapt or Perish",
         timer: 0,
-        duration: 3.5,
+        duration: 4.0,
       };
+      // After 4 seconds, switch back to trading
+      setTimeout(() => {
+        phase.current = "trading";
+      }, 4000);
+    } else if (tick >= 45) {
+      // Near epoch end — evaluation phase
+      phase.current = "evaluating";
+    } else {
+      phase.current = "trading";
     }
-  }, [generation, prevGeneration]);
+  }, [generation, prevGeneration, tick]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -204,6 +281,9 @@ export function EcosystemCanvas({
       processTrades();
       processEvents();
 
+      // Update dash offset for trade line animation
+      dashOffset.current += dt * 40;
+
       // FUD shake
       const fudEffect = activeEffects.current.find(
         (e) => e.type === "fud" && e.timer < e.duration,
@@ -220,6 +300,17 @@ export function EcosystemCanvas({
 
       // Draw grass background
       drawGrassBackground(ctx, w, h);
+
+      // Draw active trade lines
+      activeTradeLines.current = activeTradeLines.current.filter((line) => {
+        line.timer++;
+        if (line.timer > line.maxTimer) return false;
+        const alpha = 1 - line.timer / line.maxTimer;
+        ctx.globalAlpha = alpha;
+        drawTradeLine(ctx, line.x1, line.y1, line.x2, line.y2, line.color, dashOffset.current);
+        ctx.globalAlpha = 1;
+        return true;
+      });
 
       // Draw tokens (market stalls) — behind agents
       for (const entity of tokenEntities.current.values()) {
@@ -264,6 +355,12 @@ export function EcosystemCanvas({
 
       ctx.restore();
 
+      // Draw phase indicator (on top of everything, outside shake context)
+      drawPhaseIndicator(ctx, phase.current, tick, 50, generation, w);
+
+      // Draw trade log at bottom
+      drawTradeLog(ctx, tradeLog.current, w, h);
+
       animFrameId.current = requestAnimationFrame(frame);
     };
 
@@ -273,7 +370,7 @@ export function EcosystemCanvas({
       cancelAnimationFrame(animFrameId.current);
       window.removeEventListener("resize", resize);
     };
-  }, [syncAgents, syncTokens, processTrades, processEvents]);
+  }, [syncAgents, syncTokens, processTrades, processEvents, generation, tick]);
 
   return (
     <canvas

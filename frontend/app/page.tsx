@@ -59,6 +59,7 @@ export default function Dashboard() {
             tick={state.tick}
             commentary={state.commentary}
             prevGeneration={prevGeneration.current}
+            allStats={state.allStats}
           />
         </div>
       )}

@@ -1,4 +1,4 @@
-// frontend/components/game/entities.ts — Pixel Town Style
+// frontend/components/game/entities.ts — Pixel Town Style (Enhanced)
 
 // --- Constants ---
 
@@ -8,6 +8,14 @@ const STRATEGY_COLORS: Record<string, string> = {
   creation_frequency: "#22c55e",
   contrarian: "#a855f7",
   experiment_rate: "#eab308",
+};
+
+export const STRATEGY_LABELS: Record<string, string> = {
+  risk_appetite: "激进",
+  follow_leader: "跟风",
+  creation_frequency: "创造",
+  contrarian: "反向",
+  experiment_rate: "实验",
 };
 
 const THEME_COLORS: Record<string, string> = {
@@ -189,6 +197,13 @@ export class AgentEntity {
   // Speech bubble
   speechText: string;
   speechTimer: number;
+  // Strategy label
+  strategyLabel: string;
+  // Rank
+  rank: number;
+  // Elimination animation
+  eliminationPhase: "falling" | "grayed" | "dissolving" | null;
+  eliminationTimer: number;
 
   constructor(id: string, name: string, canvasW: number, canvasH: number) {
     this.id = id;
@@ -211,17 +226,24 @@ export class AgentEntity {
     this.actionLabelColor = "#22c55e";
     this.speechText = "";
     this.speechTimer = 0;
+    this.strategyLabel = "";
+    this.rank = -1;
+    this.eliminationPhase = null;
+    this.eliminationTimer = 0;
   }
 
   syncFromData(
     balance: number,
     genome: Record<string, unknown>,
-    _rank: number,
+    rank: number,
     recentAction: string | null,
   ): void {
     this.targetBalance = balance;
     const trait = dominantTrait(genome);
     this.targetColor = STRATEGY_COLORS[trait] || "#22c55e";
+    this.rank = rank;
+    this.strategyLabel = STRATEGY_LABELS[trait] || "";
+    void recentAction; // consumed by caller
   }
 
   showAction(label: string, color: string): void {
@@ -236,6 +258,31 @@ export class AgentEntity {
   }
 
   update(dt: number, canvasW: number, canvasH: number): void {
+    // Elimination animation
+    if (this.eliminationPhase) {
+      this.eliminationTimer += dt;
+      if (this.eliminationPhase === "falling") {
+        this.vy += 8 * dt;
+        this.y += this.vy;
+        if (this.eliminationTimer > 0.8) {
+          this.eliminationPhase = "grayed";
+          this.eliminationTimer = 0;
+          this.vy = 0;
+        }
+      } else if (this.eliminationPhase === "grayed") {
+        if (this.eliminationTimer > 1.0) {
+          this.eliminationPhase = "dissolving";
+          this.eliminationTimer = 0;
+        }
+      } else if (this.eliminationPhase === "dissolving") {
+        this.opacity -= dt * 2;
+        if (this.opacity <= 0) {
+          this.dying = true;
+        }
+      }
+      return;
+    }
+
     if (this.spawning) {
       this.opacity = Math.min(1, this.opacity + dt * 2);
       if (this.opacity >= 1) this.spawning = false;
@@ -289,17 +336,22 @@ export class AgentEntity {
     if (this.opacity <= 0) return;
     const x = Math.floor(this.x);
     const y = Math.floor(this.y);
-    const p = 3; // pixel block size
-    const bobY = Math.floor(Math.sin(this.frame * 0.1) * 2);
+    const p = 4; // pixel block size (larger for more detail)
+    const bobY = this.eliminationPhase ? 0 : Math.floor(Math.sin(this.frame * 0.1) * 2);
     const dy = y + bobY;
 
     ctx.save();
     ctx.globalAlpha = this.opacity;
 
+    // Grayscale filter for eliminated agents
+    if (this.eliminationPhase === "grayed" || this.eliminationPhase === "dissolving") {
+      ctx.filter = "grayscale(100%)";
+    }
+
     // Shadow
     ctx.fillStyle = "rgba(0,0,0,0.25)";
     ctx.beginPath();
-    ctx.ellipse(x, y + 22, 10, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + 24, 12, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Hair
@@ -318,6 +370,9 @@ export class AgentEntity {
     ctx.fillStyle = "#fff";
     ctx.fillRect(x - p * 0.7, dy - p * 2.7, p * 0.3, p * 0.3);
     ctx.fillRect(x + p * 0.5, dy - p * 2.7, p * 0.3, p * 0.3);
+    // Mouth
+    ctx.fillStyle = "#c0392b";
+    ctx.fillRect(x - p * 0.3, dy - p * 1.5, p * 0.6, p * 0.3);
 
     // Body (shirt)
     ctx.fillStyle = this.color;
@@ -380,18 +435,56 @@ export class AgentEntity {
       ctx.stroke();
     }
 
+    // Reset filter
+    ctx.filter = "none";
+
+    // Elimination X mark
+    if (this.eliminationPhase === "grayed") {
+      ctx.strokeStyle = "#ef4444";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x - 12, dy - 12);
+      ctx.lineTo(x + 12, dy + 12);
+      ctx.moveTo(x + 12, dy - 12);
+      ctx.lineTo(x - 12, dy + 12);
+      ctx.stroke();
+    }
+
+    // Rank badge next to name
+    let namePrefix = "";
+    let nameBgColor = "rgba(0,0,0,0.55)";
+    if (this.rank === 0) {
+      namePrefix = "\uD83D\uDC51 "; // crown
+      nameBgColor = "rgba(255,215,0,0.35)";
+    } else if (this.rank === 1) {
+      nameBgColor = "rgba(192,192,192,0.3)";
+    } else if (this.rank === 2) {
+      nameBgColor = "rgba(205,127,50,0.3)";
+    }
+
     // Name tag background
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.font = "bold 9px monospace";
-    const nameW = ctx.measureText(this.name).width;
+    const displayName = namePrefix + this.name;
+    const nameW = ctx.measureText(displayName).width;
+    ctx.fillStyle = nameBgColor;
     ctx.fillRect(x - nameW / 2 - 3, dy - p * 7.5, nameW + 6, 12);
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
-    ctx.fillText(this.name, x, dy - p * 6);
+    ctx.fillText(displayName, x, dy - p * 6);
+
+    // Rank number for top 3
+    if (this.rank >= 0 && this.rank < 3) {
+      const rankColors = ["#ffd700", "#c0c0c0", "#cd7f32"];
+      ctx.fillStyle = rankColors[this.rank];
+      ctx.font = "bold 8px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText(`#${this.rank + 1}`, x + nameW / 2 + 5, dy - p * 6);
+    }
 
     // Balance
     ctx.fillStyle = "#34d399";
     ctx.font = "8px monospace";
+    ctx.textAlign = "center";
     ctx.fillText("$" + Math.floor(this.balance), x, dy - p * 7.5 + 22);
 
     // Health bar
@@ -404,6 +497,17 @@ export class AgentEntity {
     const hColor = healthPct > 0.5 ? "#22c55e" : healthPct > 0.25 ? "#eab308" : "#ef4444";
     ctx.fillStyle = hColor;
     ctx.fillRect(x - barW / 2, barY, barW * healthPct, barH);
+
+    // Strategy label below health bar
+    if (this.strategyLabel) {
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.font = "bold 8px sans-serif";
+      const labelW = ctx.measureText(this.strategyLabel).width;
+      ctx.fillRect(x - labelW / 2 - 2, barY + barH + 1, labelW + 4, 11);
+      ctx.fillStyle = this.color;
+      ctx.textAlign = "center";
+      ctx.fillText(this.strategyLabel, x, barY + barH + 10);
+    }
 
     ctx.restore();
 
@@ -467,6 +571,7 @@ export class TokenEntity {
   dying: boolean;
   graduating: boolean;
   pulsePhase: number;
+  holderCount: number;
 
   constructor(id: string, name: string, theme: string, canvasW: number, canvasH: number) {
     this.id = id;
@@ -483,10 +588,14 @@ export class TokenEntity {
     this.dying = false;
     this.graduating = false;
     this.pulsePhase = Math.random() * Math.PI * 2;
+    this.holderCount = 0;
   }
 
-  syncFromData(bondingProgress: number, state: "active" | "graduated" | "dead"): void {
+  syncFromData(bondingProgress: number, state: "active" | "graduated" | "dead", holderCount?: number): void {
     this.targetProgress = bondingProgress;
+    if (holderCount !== undefined) {
+      this.holderCount = holderCount;
+    }
     if (state !== this.state) {
       if (state === "graduated") this.graduating = true;
       if (state === "dead") this.dying = true;
@@ -599,6 +708,22 @@ export class TokenEntity {
       ctx.fillText("CLOSED", x + 30, y - 32);
     }
 
+    // Fire icons for popular stalls (holderCount > 2)
+    if (this.holderCount > 2 && this.state === "active") {
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      const fireCount = Math.min(3, this.holderCount - 2);
+      let fireStr = "";
+      for (let i = 0; i < fireCount; i++) fireStr += "\uD83D\uDD25";
+      ctx.fillText(fireStr, x + 30, y - 36);
+
+      // Holder count badge
+      ctx.fillStyle = "rgba(239,68,68,0.8)";
+      ctx.font = "bold 8px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`${this.holderCount} holders`, x + 30, barY + 13);
+    }
+
     ctx.restore();
   }
 }
@@ -638,7 +763,6 @@ export function drawEventEffect(
   ctx.save();
 
   if (effect.type === "whale") {
-    // Big shadow moving across the ground
     const wx = -150 + progress * (canvasW + 300);
     const wy = canvasH - 100;
     ctx.globalAlpha = 0.12 * (1 - Math.abs(progress - 0.5) * 2);
@@ -646,14 +770,12 @@ export function drawEventEffect(
     ctx.beginPath();
     ctx.ellipse(wx, wy, 100, 35, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Tail
     ctx.beginPath();
     ctx.moveTo(wx + 85, wy);
     ctx.lineTo(wx + 120, wy - 30);
     ctx.lineTo(wx + 120, wy + 30);
     ctx.closePath();
     ctx.fill();
-    // Label
     ctx.globalAlpha = 0.6 * (1 - progress);
     ctx.fillStyle = "#60a5fa";
     ctx.font = "bold 18px monospace";
@@ -706,10 +828,11 @@ export function drawEventEffect(
   ctx.restore();
 }
 
-// --- Evolution Banner ---
+// --- Evolution Banner (Enhanced) ---
 
 export interface EvoBanner {
   text: string;
+  subText?: string;
   timer: number;
   duration: number;
 }
@@ -723,28 +846,225 @@ export function drawEvoBanner(
   const progress = banner.timer / banner.duration;
   if (progress > 1) return;
 
-  const alpha = progress < 0.3 ? progress / 0.3 : progress > 0.7 ? (1 - progress) / 0.3 : 1;
+  const alpha = progress < 0.2 ? progress / 0.2 : progress > 0.8 ? (1 - progress) / 0.2 : 1;
 
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Dark overlay
-  ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.fillRect(0, canvasH / 2 - 40, canvasW, 80);
+  // Full-width dark overlay
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(0, canvasH / 2 - 60, canvasW, 120);
 
-  // Text
+  // Top decorative line
   ctx.fillStyle = "#ffd700";
-  ctx.font = "bold 28px monospace";
+  ctx.fillRect(canvasW / 2 - 150, canvasH / 2 - 60, 300, 2);
+  ctx.fillRect(canvasW / 2 - 150, canvasH / 2 + 58, 300, 2);
+
+  // Main text
+  ctx.fillStyle = "#ffd700";
+  ctx.font = "bold 36px monospace";
   ctx.textAlign = "center";
   ctx.shadowColor = "#ffd700";
-  ctx.shadowBlur = 15;
-  ctx.fillText(banner.text, canvasW / 2, canvasH / 2 + 5);
+  ctx.shadowBlur = 20;
+  ctx.fillText(banner.text, canvasW / 2, canvasH / 2);
 
   // Subtitle
   ctx.shadowBlur = 0;
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.font = "12px monospace";
-  ctx.fillText("Natural selection in progress...", canvasW / 2, canvasH / 2 + 25);
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.font = "14px monospace";
+  const sub = banner.subText || "Natural Selection in Progress...";
+  ctx.fillText(sub, canvasW / 2, canvasH / 2 + 28);
+
+  // Decorative DNA helix dots
+  const helixPhase = progress * Math.PI * 4;
+  for (let i = 0; i < 8; i++) {
+    const hx = canvasW / 2 - 180 + i * 50;
+    const hy1 = canvasH / 2 - 40 + Math.sin(helixPhase + i * 0.8) * 12;
+    const hy2 = canvasH / 2 - 40 - Math.sin(helixPhase + i * 0.8) * 12;
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.fillStyle = "#ffd700";
+    ctx.beginPath();
+    ctx.arc(hx, hy1, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#60a5fa";
+    ctx.beginPath();
+    ctx.arc(hx, hy2, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// --- Trade Line Drawing ---
+
+export function drawTradeLine(
+  ctx: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  color: string,
+  dashOffset: number,
+): void {
+  ctx.save();
+  ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.lineDashOffset = -dashOffset;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+
+  // Traveling dot along the line
+  const t = (dashOffset % 60) / 60;
+  const dotX = x1 + (x2 - x1) * t;
+  const dotY = y1 + (y2 - y1) * t;
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// --- Phase Indicator (Top Banner) ---
+
+export type SimPhase = "trading" | "evaluating" | "evolving";
+
+export function drawPhaseIndicator(
+  ctx: CanvasRenderingContext2D,
+  phase: SimPhase,
+  tick: number,
+  maxTick: number,
+  generation: number,
+  canvasW: number,
+): void {
+  const barH = 32;
+  ctx.save();
+
+  // Background bar
+  ctx.fillStyle = "rgba(0,0,0,0.7)";
+  ctx.fillRect(0, 0, canvasW, barH);
+
+  // Phase sections
+  const phases: { key: SimPhase; label: string; icon: string }[] = [
+    { key: "trading", label: "TRADING", icon: "\uD83D\uDCB0" },
+    { key: "evaluating", label: "EVALUATION", icon: "\uD83C\uDFC6" },
+    { key: "evolving", label: "EVOLUTION", icon: "\uD83E\uDDEC" },
+  ];
+
+  const sectionW = 160;
+  const startX = canvasW / 2 - (sectionW * 3) / 2;
+
+  phases.forEach((p, i) => {
+    const sx = startX + i * sectionW;
+    const isActive = p.key === phase;
+
+    // Active phase highlight
+    if (isActive) {
+      ctx.fillStyle = phase === "trading" ? "rgba(34,197,94,0.3)" :
+                      phase === "evaluating" ? "rgba(234,179,8,0.3)" :
+                      "rgba(168,85,247,0.3)";
+      ctx.fillRect(sx, 0, sectionW, barH);
+      // Bottom accent line
+      ctx.fillStyle = phase === "trading" ? "#22c55e" :
+                      phase === "evaluating" ? "#eab308" :
+                      "#a855f7";
+      ctx.fillRect(sx, barH - 3, sectionW, 3);
+    }
+
+    // Arrow between phases
+    if (i < 2) {
+      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.font = "14px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("\u2192", sx + sectionW + 0, barH / 2 + 5);
+    }
+
+    // Phase text
+    ctx.fillStyle = isActive ? "#fff" : "rgba(255,255,255,0.35)";
+    ctx.font = isActive ? "bold 12px monospace" : "11px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(`${p.icon} ${p.label}`, sx + sectionW / 2, barH / 2 + 4);
+  });
+
+  // Generation + tick info on the left
+  ctx.fillStyle = "#aaa";
+  ctx.font = "10px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText(`Gen ${generation}`, 10, 14);
+  ctx.fillStyle = "#666";
+  ctx.fillText(`Tick ${tick}/${maxTick}`, 10, 26);
+
+  // Tick progress bar on the right
+  const progBarW = 100;
+  const progBarX = canvasW - progBarW - 10;
+  ctx.fillStyle = "rgba(255,255,255,0.1)";
+  ctx.fillRect(progBarX, 10, progBarW, 12);
+  const pct = maxTick > 0 ? tick / maxTick : 0;
+  ctx.fillStyle = phase === "trading" ? "#22c55e" :
+                  phase === "evaluating" ? "#eab308" :
+                  "#a855f7";
+  ctx.fillRect(progBarX, 10, progBarW * pct, 12);
+  ctx.fillStyle = "#fff";
+  ctx.font = "8px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(`${Math.floor(pct * 100)}%`, progBarX + progBarW / 2, 19);
+
+  ctx.restore();
+}
+
+// --- Trade Log (Bottom) ---
+
+export interface TradeLogEntry {
+  text: string;
+  color: string;
+  time: number;
+}
+
+export function drawTradeLog(
+  ctx: CanvasRenderingContext2D,
+  entries: TradeLogEntry[],
+  canvasW: number,
+  canvasH: number,
+): void {
+  if (entries.length === 0) return;
+
+  const maxShow = 5;
+  const recent = entries.slice(-maxShow);
+  const logH = recent.length * 16 + 10;
+  const logY = canvasH - logH - 8;
+
+  ctx.save();
+
+  // Background
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  roundRect(ctx, 8, logY, 320, logH, 6);
+  ctx.fill();
+
+  // Title
+  ctx.fillStyle = "rgba(255,255,255,0.4)";
+  ctx.font = "bold 8px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("TRADE LOG", 14, logY + 10);
+
+  // Entries
+  recent.forEach((entry, i) => {
+    const ey = logY + 20 + i * 16;
+    const age = (Date.now() - entry.time) / 1000;
+    const alpha = Math.max(0.3, 1 - age / 30);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = entry.color;
+    ctx.font = "9px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(entry.text, 14, ey);
+  });
 
   ctx.restore();
 }
