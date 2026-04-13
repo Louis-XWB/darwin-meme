@@ -11,6 +11,7 @@ import {
   createEventEffect,
   drawEventEffect,
   drawEvoBanner,
+  drawGrassBackground,
 } from "./entities";
 
 interface EcosystemCanvasProps {
@@ -40,6 +41,7 @@ export function EcosystemCanvas({
   const bannerRef = useRef<EvoBanner | null>(null);
   const lastTime = useRef<number>(0);
   const animFrameId = useRef<number>(0);
+  const processedTick = useRef<number>(-1);
 
   const syncAgents = useCallback((canvasW: number, canvasH: number) => {
     const currentIds = new Set(agents.map((a) => a.agent_id));
@@ -48,8 +50,9 @@ export function EcosystemCanvas({
     for (const [id, entity] of entityMap) {
       if (!currentIds.has(id) && !entity.dying) {
         entity.dying = true;
-        for (let i = 0; i < 12; i++) {
-          particles.current.push(new Particle(entity.x, entity.y, "#ef4444", 3));
+        // Death particles (red poof)
+        for (let i = 0; i < 10; i++) {
+          particles.current.push(new Particle(entity.x, entity.y, "#ef4444", 2, false));
         }
       }
     }
@@ -99,8 +102,9 @@ export function EcosystemCanvas({
       entity.syncFromData(token.bonding_progress, token.state);
 
       if (entity.graduating && entity.opacity > 0.5) {
-        for (let i = 0; i < 20; i++) {
-          particles.current.push(new Particle(entity.x, entity.y, "#eab308", 4));
+        // Graduation = gold coin explosion!
+        for (let i = 0; i < 25; i++) {
+          particles.current.push(new Particle(entity.x + 30, entity.y, "#ffd700", 4, true));
         }
         entity.graduating = false;
         entity.dying = true;
@@ -113,28 +117,39 @@ export function EcosystemCanvas({
   }, [tokens]);
 
   const processTrades = useCallback(() => {
+    // Only process trades once per tick
+    if (tick === processedTick.current) return;
+    processedTick.current = tick;
+
     for (const trade of trades) {
       const agentEntity = agentEntities.current.get(trade.agent_id);
       if (!agentEntity) continue;
 
       const tokenId = trade.token_id;
-      if (!tokenId) continue;
-      const tokenEntity = tokenEntities.current.get(tokenId);
-      if (!tokenEntity) continue;
+      const tokenEntity = tokenId ? tokenEntities.current.get(tokenId) : null;
 
-      if (trade.type === "buy") {
-        agentEntity.dashToward(tokenEntity.x, tokenEntity.y);
-        particles.current.push(new Particle(tokenEntity.x, tokenEntity.y, "#22c55e", 2));
-      } else if (trade.type === "sell") {
-        agentEntity.pushAway(tokenEntity.x, tokenEntity.y);
-        particles.current.push(new Particle(agentEntity.x, agentEntity.y, "#ef4444", 2));
+      if (trade.type === "buy" && tokenEntity) {
+        agentEntity.dashToward(tokenEntity.x + 30, tokenEntity.y + 25);
+        agentEntity.showAction("+BUY " + (trade.token_name || ""), "#22c55e");
+        // Gold coins
+        for (let i = 0; i < 5; i++) {
+          particles.current.push(new Particle(tokenEntity.x + 30, tokenEntity.y, "#ffd700", 2, true));
+        }
+      } else if (trade.type === "sell" && tokenEntity) {
+        agentEntity.pushAway(tokenEntity.x + 30, tokenEntity.y + 25);
+        agentEntity.showAction("-SELL " + (trade.token_name || ""), "#ef4444");
+        for (let i = 0; i < 3; i++) {
+          particles.current.push(new Particle(agentEntity.x, agentEntity.y, "#ef4444", 1.5, true));
+        }
       } else if (trade.type === "create") {
+        agentEntity.showAction("NEW: " + (trade.token_name || ""), "#3b82f6");
+        agentEntity.showSpeech("Opening shop!");
         for (let i = 0; i < 8; i++) {
-          particles.current.push(new Particle(agentEntity.x, agentEntity.y, "#3b82f6", 2));
+          particles.current.push(new Particle(agentEntity.x, agentEntity.y, "#3b82f6", 2, false));
         }
       }
     }
-  }, [trades]);
+  }, [trades, tick]);
 
   const processEvents = useCallback(() => {
     for (const event of events) {
@@ -143,7 +158,7 @@ export function EcosystemCanvas({
 
       if (event.target_token_id) {
         const te = tokenEntities.current.get(event.target_token_id);
-        if (te) { tx = te.x; ty = te.y; }
+        if (te) { tx = te.x + 30; ty = te.y + 20; }
       }
 
       activeEffects.current.push(
@@ -157,7 +172,7 @@ export function EcosystemCanvas({
       bannerRef.current = {
         text: `Generation ${prevGeneration} \u2192 ${generation}`,
         timer: 0,
-        duration: 3,
+        duration: 3.5,
       };
     }
   }, [generation, prevGeneration]);
@@ -189,48 +204,37 @@ export function EcosystemCanvas({
       processTrades();
       processEvents();
 
+      // FUD shake
       const fudEffect = activeEffects.current.find(
         (e) => e.type === "fud" && e.timer < e.duration,
       );
 
       ctx.save();
       if (fudEffect) {
-        const shake = (1 - fudEffect.timer / fudEffect.duration) * 4;
+        const shake = (1 - fudEffect.timer / fudEffect.duration) * 5;
         ctx.translate(
           (Math.random() - 0.5) * shake,
           (Math.random() - 0.5) * shake,
         );
       }
 
-      ctx.fillStyle = "#030712";
-      ctx.fillRect(0, 0, w, h);
+      // Draw grass background
+      drawGrassBackground(ctx, w, h);
 
-      ctx.strokeStyle = "rgba(55, 65, 81, 0.15)";
-      ctx.lineWidth = 0.5;
-      const gridSize = 60;
-      for (let x = 0; x < w; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
-        ctx.stroke();
-      }
-      for (let y = 0; y < h; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
-        ctx.stroke();
-      }
-
+      // Draw tokens (market stalls) — behind agents
       for (const entity of tokenEntities.current.values()) {
         entity.update(dt);
         entity.draw(ctx);
       }
 
-      for (const entity of agentEntities.current.values()) {
+      // Draw agents (pixel characters) — sorted by Y for depth
+      const sortedAgents = [...agentEntities.current.values()].sort((a, b) => a.y - b.y);
+      for (const entity of sortedAgents) {
         entity.update(dt, w, h);
         entity.draw(ctx);
       }
 
+      // Draw particles (coins, effects)
       particles.current = particles.current.filter((p) => {
         p.update(dt);
         if (p.dead) return false;
@@ -241,6 +245,7 @@ export function EcosystemCanvas({
         particles.current = particles.current.slice(-200);
       }
 
+      // Draw event effects
       activeEffects.current = activeEffects.current.filter((effect) => {
         effect.timer += dt;
         if (effect.timer > effect.duration) return false;
@@ -248,6 +253,7 @@ export function EcosystemCanvas({
         return true;
       });
 
+      // Draw banner
       if (bannerRef.current) {
         bannerRef.current.timer += dt;
         drawEvoBanner(ctx, bannerRef.current, w, h);
@@ -273,7 +279,6 @@ export function EcosystemCanvas({
     <canvas
       ref={canvasRef}
       className="absolute inset-0 w-full h-full"
-      style={{ background: "#030712" }}
     />
   );
 }
