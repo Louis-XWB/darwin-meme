@@ -1,4 +1,4 @@
-// frontend/components/game/entities.ts — Pixel Town Style (Enhanced)
+// frontend/components/game/entities.ts — Pixel Town Style (Enhanced with Ninja Adventure Sprites)
 
 // --- Constants ---
 
@@ -32,6 +32,73 @@ const THEME_COLORS: Record<string, string> = {
 const SKIN_TONES = ["#ffcc99", "#ffe0bd", "#f5d5c8", "#deb887", "#c68642"];
 const STRATEGY_KEYS = Object.keys(STRATEGY_COLORS);
 const GRASS_COLORS = ["#2d5a27", "#306b2e", "#287a28", "#2d6b30", "#358236"];
+
+// --- Sprite Key Mapping (Strategy -> Ninja Adventure Character) ---
+
+export const SPRITE_KEYS: Record<string, string> = {
+  risk_appetite: "FighterRed",
+  follow_leader: "Villager",
+  creation_frequency: "SorcererOrange",
+  contrarian: "NinjaDark",
+  experiment_rate: "Inspector",
+};
+
+// Sprite paths for preloading
+export const SPRITE_PATHS: Record<string, string> = {
+  // Characters (SpriteSheet.png: 64x112, 4 columns x 7 rows, each frame 16x16)
+  FighterRed: "/assets/Ninja Adventure/Actor/Character/FighterRed/SpriteSheet.png",
+  Villager: "/assets/Ninja Adventure/Actor/Character/Villager/SpriteSheet.png",
+  SorcererOrange: "/assets/Ninja Adventure/Actor/Character/SorcererOrange/SpriteSheet.png",
+  NinjaDark: "/assets/Ninja Adventure/Actor/Character/NinjaDark/SpriteSheet.png",
+  Inspector: "/assets/Ninja Adventure/Actor/Character/Inspector/SpriteSheet.png",
+  // Tilesets
+  field: "/assets/Ninja Adventure/Backgrounds/Tilesets/TilesetField.png",
+  nature: "/assets/Ninja Adventure/Backgrounds/Tilesets/TilesetNature.png",
+  house: "/assets/Ninja Adventure/Backgrounds/Tilesets/TilesetHouse.png",
+};
+
+// Sprite sheet constants
+const SPRITE_FRAME_SIZE = 16;
+const SPRITE_SCALE = 3;
+const SPRITE_RENDER_SIZE = SPRITE_FRAME_SIZE * SPRITE_SCALE; // 48px
+const SPRITE_ANIM_SPEED = 8; // change frame every 8 game ticks
+
+// Nature decoration definitions (fixed positions, using tiles from TilesetNature.png)
+// TilesetNature.png is 384x336 = 24 cols x 21 rows of 16x16 tiles
+// Tree top-left is approximately at col 0, row 0 area; flowers at various positions
+interface Decoration {
+  // source tile coordinates (in tile units, not pixels)
+  srcCol: number;
+  srcRow: number;
+  // how many tiles wide/tall this decoration is
+  srcW: number;
+  srcH: number;
+  // position on screen (will be computed relative to canvas)
+  xFrac: number; // fraction of canvas width
+  yFrac: number; // fraction of canvas height
+}
+
+const DECORATIONS: Decoration[] = [
+  // Trees (using 3x3 tile blocks from nature tileset, approximate positions)
+  // Large tree at col 0, row 4 (3 tiles wide, 3 tiles tall)
+  { srcCol: 0, srcRow: 4, srcW: 3, srcH: 3, xFrac: 0.05, yFrac: 0.15 },
+  { srcCol: 0, srcRow: 4, srcW: 3, srcH: 3, xFrac: 0.92, yFrac: 0.10 },
+  { srcCol: 0, srcRow: 4, srcW: 3, srcH: 3, xFrac: 0.85, yFrac: 0.75 },
+  { srcCol: 0, srcRow: 4, srcW: 3, srcH: 3, xFrac: 0.08, yFrac: 0.80 },
+  // Pine tree at col 3, row 4
+  { srcCol: 3, srcRow: 4, srcW: 3, srcH: 3, xFrac: 0.25, yFrac: 0.08 },
+  { srcCol: 3, srcRow: 4, srcW: 3, srcH: 3, xFrac: 0.70, yFrac: 0.85 },
+  // Small flowers/bushes at col 6, row 6 (2x1)
+  { srcCol: 6, srcRow: 6, srcW: 2, srcH: 1, xFrac: 0.15, yFrac: 0.35 },
+  { srcCol: 6, srcRow: 6, srcW: 2, srcH: 1, xFrac: 0.80, yFrac: 0.40 },
+  { srcCol: 6, srcRow: 6, srcW: 2, srcH: 1, xFrac: 0.50, yFrac: 0.90 },
+  // Flowers at col 8, row 6 (2x1)
+  { srcCol: 8, srcRow: 6, srcW: 2, srcH: 1, xFrac: 0.35, yFrac: 0.12 },
+  { srcCol: 8, srcRow: 6, srcW: 2, srcH: 1, xFrac: 0.60, yFrac: 0.88 },
+  // Rocks at col 12, row 6 (1x1)
+  { srcCol: 12, srcRow: 6, srcW: 1, srcH: 1, xFrac: 0.40, yFrac: 0.05 },
+  { srcCol: 12, srcRow: 6, srcW: 1, srcH: 1, xFrac: 0.55, yFrac: 0.92 },
+];
 
 // --- Helpers ---
 
@@ -75,49 +142,141 @@ function hashStr(s: string): number {
   return Math.abs(h);
 }
 
-// --- Draw Grass Background ---
+// --- Draw Grass Background (Tileset version) ---
 
 export function drawGrassBackground(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
+  sprites?: Map<string, HTMLImageElement>,
 ): void {
-  const TILE = 40;
-  const cols = Math.ceil(w / TILE) + 1;
-  const rows = Math.ceil(h / TILE) + 1;
+  const fieldImg = sprites?.get("field");
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const ci = (r * 7 + c * 13) % GRASS_COLORS.length;
-      ctx.fillStyle = GRASS_COLORS[ci];
-      ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
-      // Grass detail
-      if ((r + c) % 3 === 0) {
-        ctx.fillStyle = "rgba(0,0,0,0.06)";
-        ctx.fillRect(c * TILE + 5, r * TILE + 5, 2, 8);
-        ctx.fillRect(c * TILE + 22, r * TILE + 18, 2, 6);
-      }
-      if ((r + c) % 5 === 0) {
-        ctx.fillStyle = "rgba(100,200,80,0.15)";
-        ctx.fillRect(c * TILE + 15, r * TILE + 10, 3, 5);
+  if (fieldImg && fieldImg.complete && fieldImg.naturalWidth > 0) {
+    // Use tileset for background
+    // TilesetField.png is 80x240 = 5 cols x 15 rows of 16x16 tiles
+    // Use a few different grass tiles for variety
+    const tileSize = 16;
+    const scale = SPRITE_SCALE;
+    const renderSize = tileSize * scale;
+
+    // Grass tile positions in the field tileset (col, row)
+    const grassTiles = [
+      { col: 0, row: 0 },
+      { col: 1, row: 0 },
+      { col: 2, row: 0 },
+      { col: 3, row: 0 },
+      { col: 4, row: 0 },
+    ];
+
+    const cols = Math.ceil(w / renderSize) + 1;
+    const rows = Math.ceil(h / renderSize) + 1;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        // Pick a grass tile based on position for variety
+        const tileIdx = (r * 7 + c * 13) % grassTiles.length;
+        const tile = grassTiles[tileIdx];
+        ctx.drawImage(
+          fieldImg,
+          tile.col * tileSize, tile.row * tileSize,
+          tileSize, tileSize,
+          c * renderSize, r * renderSize,
+          renderSize, renderSize,
+        );
       }
     }
-  }
 
-  // Dirt path across middle
-  const pathY = Math.floor(rows / 2) * TILE;
-  for (let c = 0; c < cols; c++) {
-    ctx.fillStyle = c % 2 === 0 ? "#8B7355" : "#9B8365";
-    ctx.fillRect(c * TILE, pathY, TILE, TILE * 2);
-    ctx.fillStyle = "rgba(0,0,0,0.08)";
-    ctx.fillRect(c * TILE + 3, pathY + 4, 4, 4);
-    ctx.fillRect(c * TILE + 22, pathY + TILE + 12, 3, 3);
-  }
+    // Draw a dirt path across the middle using dirt tiles from row 2
+    const pathY = Math.floor(rows / 2);
+    const dirtTiles = [
+      { col: 0, row: 2 },
+      { col: 1, row: 2 },
+      { col: 2, row: 2 },
+    ];
+    for (let c = 0; c < cols; c++) {
+      for (let pr = 0; pr < 2; pr++) {
+        const dirtIdx = (c + pr) % dirtTiles.length;
+        const tile = dirtTiles[dirtIdx];
+        ctx.drawImage(
+          fieldImg,
+          tile.col * tileSize, tile.row * tileSize,
+          tileSize, tileSize,
+          c * renderSize, (pathY + pr) * renderSize,
+          renderSize, renderSize,
+        );
+      }
+    }
+  } else {
+    // Fallback: programmatic grass
+    const TILE = 40;
+    const cols = Math.ceil(w / TILE) + 1;
+    const rows = Math.ceil(h / TILE) + 1;
 
-  // Path borders
-  ctx.fillStyle = "rgba(0,0,0,0.1)";
-  ctx.fillRect(0, pathY, w, 2);
-  ctx.fillRect(0, pathY + TILE * 2 - 2, w, 2);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const ci = (r * 7 + c * 13) % GRASS_COLORS.length;
+        ctx.fillStyle = GRASS_COLORS[ci];
+        ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+        if ((r + c) % 3 === 0) {
+          ctx.fillStyle = "rgba(0,0,0,0.06)";
+          ctx.fillRect(c * TILE + 5, r * TILE + 5, 2, 8);
+          ctx.fillRect(c * TILE + 22, r * TILE + 18, 2, 6);
+        }
+        if ((r + c) % 5 === 0) {
+          ctx.fillStyle = "rgba(100,200,80,0.15)";
+          ctx.fillRect(c * TILE + 15, r * TILE + 10, 3, 5);
+        }
+      }
+    }
+
+    // Dirt path across middle
+    const pathY = Math.floor(rows / 2) * TILE;
+    for (let c = 0; c < cols; c++) {
+      ctx.fillStyle = c % 2 === 0 ? "#8B7355" : "#9B8365";
+      ctx.fillRect(c * TILE, pathY, TILE, TILE * 2);
+      ctx.fillStyle = "rgba(0,0,0,0.08)";
+      ctx.fillRect(c * TILE + 3, pathY + 4, 4, 4);
+      ctx.fillRect(c * TILE + 22, pathY + TILE + 12, 3, 3);
+    }
+
+    // Path borders
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    ctx.fillRect(0, pathY, w, 2);
+    ctx.fillRect(0, pathY + TILE * 2 - 2, w, 2);
+  }
+}
+
+// --- Draw Nature Decorations ---
+
+export function drawDecorations(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  sprites?: Map<string, HTMLImageElement>,
+): void {
+  const natureImg = sprites?.get("nature");
+  if (!natureImg || !natureImg.complete || natureImg.naturalWidth === 0) return;
+
+  const tileSize = 16;
+  const scale = SPRITE_SCALE;
+
+  ctx.save();
+  for (const deco of DECORATIONS) {
+    const dx = deco.xFrac * w;
+    const dy = deco.yFrac * h;
+    const dw = deco.srcW * tileSize * scale;
+    const dh = deco.srcH * tileSize * scale;
+
+    ctx.drawImage(
+      natureImg,
+      deco.srcCol * tileSize, deco.srcRow * tileSize,
+      deco.srcW * tileSize, deco.srcH * tileSize,
+      dx - dw / 2, dy - dh / 2,
+      dw, dh,
+    );
+  }
+  ctx.restore();
 }
 
 // --- Particle (Gold Coins) ---
@@ -172,7 +331,7 @@ export class Particle {
   }
 }
 
-// --- AgentEntity (Pixel Character) ---
+// --- AgentEntity (Pixel Character with Sprite Sheet support) ---
 
 export class AgentEntity {
   id: string;
@@ -204,6 +363,12 @@ export class AgentEntity {
   // Elimination animation
   eliminationPhase: "falling" | "grayed" | "dissolving" | null;
   eliminationTimer: number;
+  // Sprite animation
+  spriteKey: string;
+  animFrame: number; // 0-3
+  animRow: number; // 0=down, 1=up, 2=left, 3=right
+  animTimer: number;
+  dominantTraitKey: string;
 
   constructor(id: string, name: string, canvasW: number, canvasH: number) {
     this.id = id;
@@ -230,6 +395,12 @@ export class AgentEntity {
     this.rank = -1;
     this.eliminationPhase = null;
     this.eliminationTimer = 0;
+    // Sprite defaults
+    this.spriteKey = "Villager";
+    this.animFrame = 0;
+    this.animRow = 0;
+    this.animTimer = 0;
+    this.dominantTraitKey = "follow_leader";
   }
 
   syncFromData(
@@ -243,6 +414,8 @@ export class AgentEntity {
     this.targetColor = STRATEGY_COLORS[trait] || "#22c55e";
     this.rank = rank;
     this.strategyLabel = STRATEGY_LABELS[trait] || "";
+    this.dominantTraitKey = trait;
+    this.spriteKey = SPRITE_KEYS[trait] || "Villager";
     void recentAction; // consumed by caller
   }
 
@@ -310,6 +483,31 @@ export class AgentEntity {
     this.frame++;
     if (this.actionLabelTimer > 0) this.actionLabelTimer--;
     if (this.speechTimer > 0) this.speechTimer--;
+
+    // Update sprite animation
+    this.animTimer++;
+    if (this.animTimer >= SPRITE_ANIM_SPEED) {
+      this.animTimer = 0;
+      this.animFrame = (this.animFrame + 1) % 4;
+    }
+
+    // Determine animation row based on velocity (direction)
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (speed > 0.15) {
+      // Moving: pick direction row
+      if (Math.abs(this.vx) > Math.abs(this.vy)) {
+        // Horizontal movement dominates
+        this.animRow = this.vx > 0 ? 3 : 2; // right : left
+      } else {
+        // Vertical movement dominates
+        this.animRow = this.vy > 0 ? 0 : 1; // down : up
+      }
+    } else {
+      // Idle: use row 0 frame 0 (standing facing down)
+      this.animFrame = 0;
+      this.animRow = 0;
+      this.animTimer = 0;
+    }
   }
 
   dashToward(tx: number, ty: number): void {
@@ -332,13 +530,10 @@ export class AgentEntity {
     return this.dying && this.opacity <= 0;
   }
 
-  draw(ctx: CanvasRenderingContext2D): void {
+  draw(ctx: CanvasRenderingContext2D, sprites?: Map<string, HTMLImageElement>): void {
     if (this.opacity <= 0) return;
     const x = Math.floor(this.x);
     const y = Math.floor(this.y);
-    const p = 4; // pixel block size (larger for more detail)
-    const bobY = this.eliminationPhase ? 0 : Math.floor(Math.sin(this.frame * 0.1) * 2);
-    const dy = y + bobY;
 
     ctx.save();
     ctx.globalAlpha = this.opacity;
@@ -351,8 +546,153 @@ export class AgentEntity {
     // Shadow
     ctx.fillStyle = "rgba(0,0,0,0.25)";
     ctx.beginPath();
-    ctx.ellipse(x, y + 24, 12, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + SPRITE_RENDER_SIZE / 2 - 2, SPRITE_RENDER_SIZE / 3, 6, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    // Try to draw sprite from sprite sheet
+    const spriteImg = sprites?.get(this.spriteKey);
+    if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
+      // Draw from SpriteSheet.png
+      const sx = this.animFrame * SPRITE_FRAME_SIZE;
+      const sy = this.animRow * SPRITE_FRAME_SIZE;
+
+      ctx.drawImage(
+        spriteImg,
+        sx, sy, SPRITE_FRAME_SIZE, SPRITE_FRAME_SIZE,
+        x - SPRITE_RENDER_SIZE / 2, y - SPRITE_RENDER_SIZE / 2,
+        SPRITE_RENDER_SIZE, SPRITE_RENDER_SIZE,
+      );
+    } else {
+      // Fallback: programmatic pixel character
+      this.drawFallbackCharacter(ctx, x, y);
+    }
+
+    // Reset filter
+    ctx.filter = "none";
+
+    // Elimination X mark
+    if (this.eliminationPhase === "grayed") {
+      ctx.strokeStyle = "#ef4444";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x - 12, y - 12);
+      ctx.lineTo(x + 12, y + 12);
+      ctx.moveTo(x + 12, y - 12);
+      ctx.lineTo(x - 12, y + 12);
+      ctx.stroke();
+    }
+
+    // --- Overlays (name, balance, health bar, strategy, rank) ---
+    const overlayBaseY = y - SPRITE_RENDER_SIZE / 2;
+
+    // Rank badge next to name
+    let namePrefix = "";
+    let nameBgColor = "rgba(0,0,0,0.55)";
+    if (this.rank === 0) {
+      namePrefix = "\uD83D\uDC51 "; // crown
+      nameBgColor = "rgba(255,215,0,0.35)";
+    } else if (this.rank === 1) {
+      nameBgColor = "rgba(192,192,192,0.3)";
+    } else if (this.rank === 2) {
+      nameBgColor = "rgba(205,127,50,0.3)";
+    }
+
+    // Name tag background
+    ctx.font = "bold 9px monospace";
+    const displayName = namePrefix + this.name;
+    const nameW = ctx.measureText(displayName).width;
+    ctx.fillStyle = nameBgColor;
+    ctx.fillRect(x - nameW / 2 - 3, overlayBaseY - 18, nameW + 6, 12);
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.fillText(displayName, x, overlayBaseY - 9);
+
+    // Rank number for top 3
+    if (this.rank >= 0 && this.rank < 3) {
+      const rankColors = ["#ffd700", "#c0c0c0", "#cd7f32"];
+      ctx.fillStyle = rankColors[this.rank];
+      ctx.font = "bold 8px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText(`#${this.rank + 1}`, x + nameW / 2 + 5, overlayBaseY - 9);
+    }
+
+    // Balance
+    ctx.fillStyle = "#34d399";
+    ctx.font = "8px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("$" + Math.floor(this.balance), x, overlayBaseY - 4);
+
+    // Health bar
+    const barW = SPRITE_RENDER_SIZE;
+    const barH = 3;
+    const barY = y + SPRITE_RENDER_SIZE / 2 + 2;
+    const healthPct = Math.min(1, this.balance / 200);
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.fillRect(x - barW / 2, barY, barW, barH);
+    const hColor = healthPct > 0.5 ? "#22c55e" : healthPct > 0.25 ? "#eab308" : "#ef4444";
+    ctx.fillStyle = hColor;
+    ctx.fillRect(x - barW / 2, barY, barW * healthPct, barH);
+
+    // Strategy label below health bar
+    if (this.strategyLabel) {
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.font = "bold 8px sans-serif";
+      const labelW = ctx.measureText(this.strategyLabel).width;
+      ctx.fillRect(x - labelW / 2 - 2, barY + barH + 1, labelW + 4, 11);
+      ctx.fillStyle = this.color;
+      ctx.textAlign = "center";
+      ctx.fillText(this.strategyLabel, x, barY + barH + 10);
+    }
+
+    ctx.restore();
+
+    // Floating action label (drawn outside save/restore for full opacity)
+    if (this.actionLabelTimer > 0) {
+      const alpha = Math.min(1, this.actionLabelTimer / 30);
+      const floatY = overlayBaseY - 22 - (60 - this.actionLabelTimer) * 0.6;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = this.actionLabelColor;
+      ctx.font = "bold 11px monospace";
+      ctx.textAlign = "center";
+      ctx.shadowColor = this.actionLabelColor;
+      ctx.shadowBlur = 8;
+      ctx.fillText(this.actionLabel, x, floatY);
+      ctx.restore();
+    }
+
+    // Speech bubble
+    if (this.speechTimer > 0 && this.speechText) {
+      const alpha = Math.min(1, this.speechTimer / 30);
+      const bx = x;
+      const by = overlayBaseY - 34;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = "8px monospace";
+      const tw = ctx.measureText(this.speechText).width;
+      // Bubble
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      roundRect(ctx, bx - tw / 2 - 6, by - 10, tw + 12, 16, 5);
+      ctx.fill();
+      // Tail
+      ctx.beginPath();
+      ctx.moveTo(bx - 4, by + 6);
+      ctx.lineTo(bx, by + 14);
+      ctx.lineTo(bx + 4, by + 6);
+      ctx.fill();
+      // Text
+      ctx.fillStyle = "#111";
+      ctx.textAlign = "center";
+      ctx.fillText(this.speechText, bx, by + 2);
+      ctx.restore();
+    }
+  }
+
+  // Fallback programmatic character drawing (used when sprites not loaded)
+  private drawFallbackCharacter(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    const p = 4;
+    const bobY = this.eliminationPhase ? 0 : Math.floor(Math.sin(this.frame * 0.1) * 2);
+    const dy = y + bobY;
 
     // Hair
     ctx.fillStyle = darken(this.color, 50);
@@ -399,28 +739,23 @@ export class AgentEntity {
     // Strategy accessory
     const trait = this.color;
     if (trait === "#ef4444") {
-      // Red = headband
       ctx.fillStyle = "#ef4444";
       ctx.fillRect(x - p * 2, dy - p * 4, p * 4, p * 0.7);
       ctx.fillRect(x + p * 1.5, dy - p * 4.5, p * 0.5, p * 2);
     } else if (trait === "#3b82f6") {
-      // Blue = cap
       ctx.fillStyle = "#3b82f6";
       ctx.fillRect(x - p * 2, dy - p * 5.5, p * 4.5, p * 1);
       ctx.fillRect(x + p * 1, dy - p * 5, p * 2, p * 0.7);
     } else if (trait === "#22c55e") {
-      // Green = beret
       ctx.fillStyle = "#1a5c2a";
       ctx.beginPath();
       ctx.ellipse(x - 1, dy - p * 5.5, p * 2.5, p * 1, -0.2, 0, Math.PI * 2);
       ctx.fill();
     } else if (trait === "#a855f7") {
-      // Purple = devil horns
       ctx.fillStyle = "#7c3aed";
       ctx.fillRect(x - p * 2, dy - p * 6.5, p * 0.8, p * 1.5);
       ctx.fillRect(x + p * 1.2, dy - p * 6.5, p * 0.8, p * 1.5);
     } else if (trait === "#eab308") {
-      // Yellow = goggles
       ctx.strokeStyle = "#aaa";
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -433,123 +768,6 @@ export class AgentEntity {
       ctx.moveTo(x - p * 0.5 + p * 0.9, dy - p * 2.5);
       ctx.lineTo(x + p * 0.7 - p * 0.9, dy - p * 2.5);
       ctx.stroke();
-    }
-
-    // Reset filter
-    ctx.filter = "none";
-
-    // Elimination X mark
-    if (this.eliminationPhase === "grayed") {
-      ctx.strokeStyle = "#ef4444";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(x - 12, dy - 12);
-      ctx.lineTo(x + 12, dy + 12);
-      ctx.moveTo(x + 12, dy - 12);
-      ctx.lineTo(x - 12, dy + 12);
-      ctx.stroke();
-    }
-
-    // Rank badge next to name
-    let namePrefix = "";
-    let nameBgColor = "rgba(0,0,0,0.55)";
-    if (this.rank === 0) {
-      namePrefix = "\uD83D\uDC51 "; // crown
-      nameBgColor = "rgba(255,215,0,0.35)";
-    } else if (this.rank === 1) {
-      nameBgColor = "rgba(192,192,192,0.3)";
-    } else if (this.rank === 2) {
-      nameBgColor = "rgba(205,127,50,0.3)";
-    }
-
-    // Name tag background
-    ctx.font = "bold 9px monospace";
-    const displayName = namePrefix + this.name;
-    const nameW = ctx.measureText(displayName).width;
-    ctx.fillStyle = nameBgColor;
-    ctx.fillRect(x - nameW / 2 - 3, dy - p * 7.5, nameW + 6, 12);
-    ctx.fillStyle = "#fff";
-    ctx.textAlign = "center";
-    ctx.fillText(displayName, x, dy - p * 6);
-
-    // Rank number for top 3
-    if (this.rank >= 0 && this.rank < 3) {
-      const rankColors = ["#ffd700", "#c0c0c0", "#cd7f32"];
-      ctx.fillStyle = rankColors[this.rank];
-      ctx.font = "bold 8px monospace";
-      ctx.textAlign = "left";
-      ctx.fillText(`#${this.rank + 1}`, x + nameW / 2 + 5, dy - p * 6);
-    }
-
-    // Balance
-    ctx.fillStyle = "#34d399";
-    ctx.font = "8px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("$" + Math.floor(this.balance), x, dy - p * 7.5 + 22);
-
-    // Health bar
-    const barW = p * 5;
-    const barH = 3;
-    const barY = dy + p * 5.5;
-    const healthPct = Math.min(1, this.balance / 200);
-    ctx.fillStyle = "rgba(0,0,0,0.4)";
-    ctx.fillRect(x - barW / 2, barY, barW, barH);
-    const hColor = healthPct > 0.5 ? "#22c55e" : healthPct > 0.25 ? "#eab308" : "#ef4444";
-    ctx.fillStyle = hColor;
-    ctx.fillRect(x - barW / 2, barY, barW * healthPct, barH);
-
-    // Strategy label below health bar
-    if (this.strategyLabel) {
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      ctx.font = "bold 8px sans-serif";
-      const labelW = ctx.measureText(this.strategyLabel).width;
-      ctx.fillRect(x - labelW / 2 - 2, barY + barH + 1, labelW + 4, 11);
-      ctx.fillStyle = this.color;
-      ctx.textAlign = "center";
-      ctx.fillText(this.strategyLabel, x, barY + barH + 10);
-    }
-
-    ctx.restore();
-
-    // Floating action label (drawn outside save/restore for full opacity)
-    if (this.actionLabelTimer > 0) {
-      const alpha = Math.min(1, this.actionLabelTimer / 30);
-      const floatY = dy - p * 9 - (60 - this.actionLabelTimer) * 0.6;
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = this.actionLabelColor;
-      ctx.font = "bold 11px monospace";
-      ctx.textAlign = "center";
-      ctx.shadowColor = this.actionLabelColor;
-      ctx.shadowBlur = 8;
-      ctx.fillText(this.actionLabel, x, floatY);
-      ctx.restore();
-    }
-
-    // Speech bubble
-    if (this.speechTimer > 0 && this.speechText) {
-      const alpha = Math.min(1, this.speechTimer / 30);
-      const bx = x;
-      const by = dy - p * 11;
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.font = "8px monospace";
-      const tw = ctx.measureText(this.speechText).width;
-      // Bubble
-      ctx.fillStyle = "rgba(255,255,255,0.92)";
-      roundRect(ctx, bx - tw / 2 - 6, by - 10, tw + 12, 16, 5);
-      ctx.fill();
-      // Tail
-      ctx.beginPath();
-      ctx.moveTo(bx - 4, by + 6);
-      ctx.lineTo(bx, by + 14);
-      ctx.lineTo(bx + 4, by + 6);
-      ctx.fill();
-      // Text
-      ctx.fillStyle = "#111";
-      ctx.textAlign = "center";
-      ctx.fillText(this.speechText, bx, by + 2);
-      ctx.restore();
     }
   }
 }

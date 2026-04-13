@@ -12,9 +12,11 @@ import {
   drawEventEffect,
   drawEvoBanner,
   drawGrassBackground,
+  drawDecorations,
   drawTradeLine,
   drawPhaseIndicator,
   drawTradeLog,
+  SPRITE_PATHS,
   type SimPhase,
   type TradeLogEntry,
 } from "./entities";
@@ -63,6 +65,35 @@ export function EcosystemCanvas({
   const activeTradeLines = useRef<ActiveTradeLine[]>([]);
   const phase = useRef<SimPhase>("trading");
   const dashOffset = useRef<number>(0);
+
+  // Sprite loading ref
+  const sprites = useRef<Map<string, HTMLImageElement>>(new Map());
+  const spritesLoaded = useRef<boolean>(false);
+
+  // Load all sprite sheets on mount
+  useEffect(() => {
+    let loadCount = 0;
+    const totalSprites = Object.keys(SPRITE_PATHS).length;
+
+    for (const [key, path] of Object.entries(SPRITE_PATHS)) {
+      const img = new Image();
+      img.src = path;
+      img.onload = () => {
+        sprites.current.set(key, img);
+        loadCount++;
+        if (loadCount >= totalSprites) {
+          spritesLoaded.current = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load sprite: ${key} from ${path}`);
+        loadCount++;
+        if (loadCount >= totalSprites) {
+          spritesLoaded.current = true;
+        }
+      };
+    }
+  }, []);
 
   const syncAgents = useCallback((canvasW: number, canvasH: number) => {
     const currentIds = new Set(agents.map((a) => a.agent_id));
@@ -298,8 +329,14 @@ export function EcosystemCanvas({
         );
       }
 
-      // Draw grass background
-      drawGrassBackground(ctx, w, h);
+      // Keep pixel art crisp — disable image smoothing
+      ctx.imageSmoothingEnabled = false;
+
+      // Draw grass background (with tileset if loaded)
+      drawGrassBackground(ctx, w, h, sprites.current);
+
+      // Draw nature decorations (trees, flowers, rocks)
+      drawDecorations(ctx, w, h, sprites.current);
 
       // Draw active trade lines
       activeTradeLines.current = activeTradeLines.current.filter((line) => {
@@ -318,11 +355,11 @@ export function EcosystemCanvas({
         entity.draw(ctx);
       }
 
-      // Draw agents (pixel characters) — sorted by Y for depth
+      // Draw agents (sprite characters) — sorted by Y for depth
       const sortedAgents = [...agentEntities.current.values()].sort((a, b) => a.y - b.y);
       for (const entity of sortedAgents) {
         entity.update(dt, w, h);
-        entity.draw(ctx);
+        entity.draw(ctx, sprites.current);
       }
 
       // Draw particles (coins, effects)
