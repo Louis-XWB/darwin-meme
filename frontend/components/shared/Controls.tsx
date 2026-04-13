@@ -6,9 +6,11 @@ interface ControlsProps {
   generation: number;
   tick: number;
   speed: number;
+  view: "data" | "game";
   onStart: (speed: number) => void;
   onStop: () => void;
   onSpeedChange: (speed: number) => void;
+  onViewChange: (view: "data" | "game") => void;
 }
 
 const SPEEDS = [
@@ -18,10 +20,11 @@ const SPEEDS = [
 ];
 
 export function Controls({
-  running, connected, generation, tick, speed, onStart, onStop, onSpeedChange,
+  running, connected, generation, tick, speed, view,
+  onStart, onStop, onSpeedChange, onViewChange,
 }: ControlsProps) {
   return (
-    <div className="flex items-center gap-4 px-6 py-3 bg-gray-900 border-b border-gray-800">
+    <div className="flex items-center gap-4 px-6 py-3 bg-gray-900 border-b border-gray-800 z-50 relative">
       <h1 className="text-xl font-bold tracking-tight">
         <span className="text-emerald-400">Darwin</span>
         <span className="text-gray-500">.meme</span>
@@ -40,7 +43,32 @@ export function Controls({
         <span className="text-blue-400">{tick}/50</span>
       </div>
 
-      <div className="flex items-center gap-1 ml-4">
+      {/* View toggle */}
+      <div className="flex items-center gap-1 ml-4 border border-gray-700 rounded p-0.5">
+        <button
+          onClick={() => onViewChange("data")}
+          className={`px-2 py-1 text-xs rounded ${
+            view === "data"
+              ? "bg-gray-700 text-white"
+              : "text-gray-500 hover:text-gray-300"
+          }`}
+        >
+          Data
+        </button>
+        <button
+          onClick={() => onViewChange("game")}
+          className={`px-2 py-1 text-xs rounded ${
+            view === "game"
+              ? "bg-emerald-600 text-white"
+              : "text-gray-500 hover:text-gray-300"
+          }`}
+        >
+          Game
+        </button>
+      </div>
+
+      {/* Speed controls */}
+      <div className="flex items-center gap-1 ml-2">
         {SPEEDS.map((s) => (
           <button
             key={s.label}
