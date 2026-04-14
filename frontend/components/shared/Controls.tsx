@@ -63,7 +63,7 @@ export function Controls({
               : "text-gray-500 hover:text-gray-300"
           }`}
         >
-          Game
+          Terminal
         </button>
       </div>
 

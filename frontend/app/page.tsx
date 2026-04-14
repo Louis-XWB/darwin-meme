@@ -11,7 +11,7 @@ import { GameView } from "@/components/game/GameView";
 
 export default function Dashboard() {
   const { state, startSimulation, stopSimulation, setSpeed } = useSimulation();
-  const [view, setView] = useState<"data" | "game">("game");
+  const [view, setView] = useState<"data" | "game">("data");
   const prevGeneration = useRef(0);
 
   if (state.generation !== prevGeneration.current && state.generation > 0) {
