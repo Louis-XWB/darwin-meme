@@ -28,6 +28,8 @@ interface MarketToken {
   holders: number;
   progress: number;
   trend: string;
+  increase?: number;
+  cap?: number;
 }
 
 interface AnalysisResult {
@@ -41,37 +43,36 @@ interface AnalysisResult {
 
 const SIGNAL_STYLES: Record<
   string,
-  { bg: string; text: string; border: string; label: string }
+  { bg: string; text: string; border: string; label: string; icon: string }
 > = {
-  BUY: {
-    bg: "bg-emerald-500/15",
-    text: "text-emerald-400",
-    border: "border-emerald-500/40",
-    label: "BUY",
-  },
-  SELL: {
-    bg: "bg-red-500/15",
-    text: "text-red-400",
-    border: "border-red-500/40",
-    label: "SELL",
-  },
-  WAIT: {
-    bg: "bg-yellow-500/15",
-    text: "text-yellow-400",
-    border: "border-yellow-500/40",
-    label: "WAIT",
-  },
-  SKIP: {
-    bg: "bg-gray-500/15",
-    text: "text-gray-400",
-    border: "border-gray-500/40",
-    label: "SKIP",
-  },
+  BUY: { bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/40", label: "BUY", icon: "✅" },
+  SELL: { bg: "bg-red-500/15", text: "text-red-400", border: "border-red-500/40", label: "SELL", icon: "🔴" },
+  WAIT: { bg: "bg-yellow-500/15", text: "text-yellow-400", border: "border-yellow-500/40", label: "WAIT", icon: "⚠️" },
+  SKIP: { bg: "bg-gray-500/15", text: "text-gray-400", border: "border-gray-500/40", label: "SKIP", icon: "❌" },
 };
+
+const STRATEGY_MAP: Record<string, { label: string; color: string }> = {
+  risk_appetite: { label: "Aggressive", color: "#ef4444" },
+  follow_leader: { label: "Follower", color: "#3b82f6" },
+  creation_frequency: { label: "Creator", color: "#22c55e" },
+  contrarian: { label: "Contrarian", color: "#a855f7" },
+  experiment_rate: { label: "Experimenter", color: "#eab308" },
+};
+
+function getDominantStrategy(genome: Record<string, unknown>): { label: string; color: string } {
+  const keys = Object.keys(STRATEGY_MAP);
+  let best = keys[0];
+  let bestVal = -1;
+  for (const key of keys) {
+    const val = (genome[key] as number) ?? 0;
+    if (val > bestVal) { bestVal = val; best = key; }
+  }
+  return STRATEGY_MAP[best];
+}
 
 function formatPrice(price: number): string {
   if (price < 0.0001) return `$${price.toExponential(2)}`;
-  if (price < 1) return `$${price.toFixed(4)}`;
+  if (price < 1) return `$${price.toFixed(6)}`;
   return `$${price.toFixed(2)}`;
 }
 
@@ -81,65 +82,18 @@ function formatVolume(vol: number): string {
   return `$${vol.toFixed(0)}`;
 }
 
-function TrendIcon({ trend }: { trend: string }) {
-  if (trend === "up")
-    return <span className="text-emerald-400 text-xs font-mono">▲</span>;
-  if (trend === "down")
-    return <span className="text-red-400 text-xs font-mono">▼</span>;
-  return <span className="text-gray-500 text-xs font-mono">—</span>;
-}
-
-function ProgressBar({ value }: { value: number }) {
-  const clamped = Math.min(100, Math.max(0, value));
-  const filled = Math.round(clamped / 10);
-  const empty = 10 - filled;
-  const color =
-    clamped >= 80
-      ? "text-emerald-400"
-      : clamped >= 50
-        ? "text-yellow-400"
-        : "text-gray-500";
-  return (
-    <span className={`font-mono text-xs ${color}`}>
-      {"█".repeat(filled)}
-      {"░".repeat(empty)} {clamped}%
-    </span>
-  );
-}
-
-function ConfidenceBar({ value }: { value: number }) {
-  const color =
-    value >= 70
-      ? "bg-emerald-500"
-      : value >= 40
-        ? "bg-yellow-500"
-        : "bg-red-500";
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-12 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full ${color}`}
-          style={{ width: `${Math.min(100, value)}%` }}
-        />
-      </div>
-      <span className="text-gray-400 font-mono text-xs">{value}%</span>
-    </div>
-  );
-}
-
-export function LiveAnalysis({
-  agent,
-  totalGenerations,
-  onClose,
-}: LiveAnalysisProps) {
+export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisProps) {
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(30);
-  const [expandedToken, setExpandedToken] = useState<string | null>(null);
+  const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const strategy = getDominantStrategy(agent.genome as unknown as Record<string, unknown>);
+  const roi = ((agent.balance - 100) / 100 * 100).toFixed(1);
 
   const fetchAnalysis = useCallback(async () => {
     setLoading(true);
@@ -148,330 +102,298 @@ export function LiveAnalysis({
       const res = await fetch(`${BACKEND_URL}/api/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          genome: agent.genome,
-          agent_name: agent.name,
-        }),
+        body: JSON.stringify({ genome: agent.genome, agent_name: agent.name }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const result: AnalysisResult = await res.json();
       setData(result);
       setLastUpdate(new Date());
       setCountdown(30);
+      // Auto select first token
+      if (result.tokens.length > 0 && !selectedToken) {
+        setSelectedToken(result.tokens[0].name);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to fetch analysis");
+      setError(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
       setLoading(false);
     }
-  }, [agent]);
+  }, [agent, selectedToken]);
 
-  // Fetch on mount
+  useEffect(() => { fetchAnalysis(); }, []);
   useEffect(() => {
-    fetchAnalysis();
+    timerRef.current = setInterval(fetchAnalysis, 30_000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [fetchAnalysis]);
-
-  // Auto-refresh every 30s
   useEffect(() => {
-    timerRef.current = setInterval(() => {
-      fetchAnalysis();
-    }, 30_000);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [fetchAnalysis]);
-
-  // Countdown timer
-  useEffect(() => {
-    countdownRef.current = setInterval(() => {
-      setCountdown((prev) => (prev <= 1 ? 30 : prev - 1));
-    }, 1_000);
-    return () => {
-      if (countdownRef.current) clearInterval(countdownRef.current);
-    };
+    countdownRef.current = setInterval(() => setCountdown((p) => p <= 1 ? 30 : p - 1), 1_000);
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
   }, []);
 
-  // Find the top pick (highest confidence BUY)
-  const topPick = data?.result.analysis
-    ?.filter((a) => a.signal === "BUY")
-    .sort((a, b) => b.confidence - a.confidence)[0];
-
-  // Build a map of token data by name for cross-referencing
-  const tokenMap = new Map<string, MarketToken>();
-  data?.tokens.forEach((t) => tokenMap.set(t.name, t));
+  const selectedAnalysis = data?.result.analysis?.find(
+    (a) => a.token === selectedToken || a.token === data?.tokens.find((t) => t.name === selectedToken)?.symbol
+  );
+  const selectedTokenData = data?.tokens.find((t) => t.name === selectedToken);
+  const topPick = data?.result.analysis?.filter((a) => a.signal === "BUY").sort((a, b) => b.confidence - a.confidence)[0];
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/90 backdrop-blur-md"
-        onClick={onClose}
-      />
+    <div className="fixed inset-0 z-[70] bg-[#050810]">
+      {/* Top bar */}
+      <div className="h-14 border-b border-red-500/20 bg-[#080c14] flex items-center px-6 gap-4">
+        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" style={{ boxShadow: "0 0 8px rgba(239,68,68,0.8)" }} />
+        <span className="text-red-400 font-mono text-sm font-bold tracking-wider">LIVE ANALYSIS</span>
+        <span className="text-gray-600 font-mono text-xs">|</span>
+        <span className="text-white font-mono text-sm font-bold">{agent.name}</span>
+        <span className="px-2 py-0.5 rounded text-xs font-mono font-bold" style={{ color: strategy.color, background: `${strategy.color}15`, border: `1px solid ${strategy.color}40` }}>
+          {strategy.label}
+        </span>
+        <span className="text-gray-600 font-mono text-xs">ROI: <span className={parseFloat(roi) >= 0 ? "text-emerald-400" : "text-red-400"}>{roi}%</span></span>
+        <span className="text-gray-700 font-mono text-xs">| Evolved through {totalGenerations} gen</span>
 
-      {/* Panel */}
-      <div
-        className="relative z-10 max-w-4xl w-full max-h-[92vh] overflow-y-auto rounded-2xl border"
-        style={{
-          borderColor: "rgba(239,68,68,0.3)",
-          background: "rgba(5,8,12,0.98)",
-          boxShadow:
-            "0 0 80px rgba(239,68,68,0.08), 0 0 40px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.03)",
-        }}
-      >
-        {/* Header */}
-        <div
-          className="sticky top-0 z-10 px-6 pt-5 pb-4"
-          style={{
-            background: "rgba(5,8,12,0.98)",
-            borderBottom: "1px solid rgba(239,68,68,0.15)",
-          }}
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <div
-                  className="w-2 h-2 rounded-full bg-red-500 animate-pulse"
-                  style={{ boxShadow: "0 0 8px rgba(239,68,68,0.8)" }}
-                />
-                <span className="text-red-400 font-mono text-xs tracking-widest uppercase font-bold">
-                  Live Analysis
-                </span>
-                <span className="text-gray-600 font-mono text-xs">
-                  Champion &ldquo;{agent.name}&rdquo;
-                </span>
-              </div>
-              <h1
-                className="text-white font-mono text-xl font-bold"
-                style={{ textShadow: "0 0 20px rgba(239,68,68,0.3)" }}
-              >
-                FOUR.MEME MARKET SCAN
-              </h1>
-              <p className="text-gray-500 font-mono text-xs mt-1">
-                Evolved through {totalGenerations} generation
-                {totalGenerations !== 1 ? "s" : ""} | Scanning Four.meme market
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={fetchAnalysis}
-                disabled={loading}
-                className="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 font-mono text-xs font-bold hover:bg-red-500/20 transition-colors disabled:opacity-40"
-              >
-                {loading ? "Scanning..." : "Refresh"}
-              </button>
-              <button
-                onClick={onClose}
-                className="text-gray-600 hover:text-gray-300 font-mono text-xl leading-none transition-colors px-1"
-              >
-                &times;
-              </button>
-            </div>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-gray-600 font-mono text-xs">
+            {lastUpdate ? lastUpdate.toLocaleTimeString() : "--:--"} | Refresh in {countdown}s
+          </span>
+          <button
+            onClick={fetchAnalysis}
+            disabled={loading}
+            className="px-3 py-1 rounded border border-red-500/30 bg-red-500/10 text-red-400 font-mono text-xs font-bold hover:bg-red-500/20 disabled:opacity-40"
+          >
+            {loading ? "Scanning..." : "Refresh"}
+          </button>
+          <button onClick={onClose} className="text-gray-600 hover:text-white font-mono text-lg transition-colors">✕</button>
+        </div>
+      </div>
+
+      {/* Main content: left tokens + right analysis */}
+      <div className="flex h-[calc(100vh-56px)]">
+
+        {/* LEFT: Token list */}
+        <div className="w-[420px] border-r border-gray-800/50 overflow-y-auto bg-[#060a12]">
+          <div className="px-4 py-3 border-b border-gray-800/50">
+            <span className="text-gray-500 font-mono text-xs uppercase tracking-wider">Four.meme Live Tokens</span>
           </div>
+
+          {loading && !data && (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-2 border-red-500/20 border-t-red-500 rounded-full animate-spin" />
+            </div>
+          )}
+
+          {data?.tokens.map((token) => {
+            const analysis = data.result.analysis?.find(
+              (a) => a.token === token.name || a.token === token.symbol
+            );
+            const signal = analysis?.signal?.toUpperCase() || "SKIP";
+            const style = SIGNAL_STYLES[signal] || SIGNAL_STYLES.SKIP;
+            const isSelected = selectedToken === token.name;
+
+            return (
+              <div
+                key={token.symbol}
+                onClick={() => setSelectedToken(token.name)}
+                className={`px-4 py-3 border-b border-gray-800/30 cursor-pointer transition-all ${
+                  isSelected ? "bg-white/[0.04] border-l-2 border-l-red-500" : "hover:bg-white/[0.02] border-l-2 border-l-transparent"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className={token.trend === "up" ? "text-emerald-400" : token.trend === "down" ? "text-red-400" : "text-gray-500"}>
+                      {token.trend === "up" ? "▲" : token.trend === "down" ? "▼" : "—"}
+                    </span>
+                    <span className="text-white font-mono text-sm font-bold">{token.name}</span>
+                  </div>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${style.bg} ${style.text} ${style.border} border`}>
+                    {style.icon} {style.label}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs font-mono">
+                  <span className="text-gray-300">{formatPrice(token.price)}</span>
+                  <span className="text-gray-500">Vol: {formatVolume(token.volume_24h)}</span>
+                  <span className="text-gray-500">{token.holders} holders</span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(100, token.progress)}%`,
+                        background: token.progress >= 80 ? "#22c55e" : token.progress >= 50 ? "#eab308" : "#6b7280",
+                      }}
+                    />
+                  </div>
+                  <span className="text-gray-500 font-mono text-[10px] w-10 text-right">{typeof token.progress === 'number' ? token.progress.toFixed(1) : token.progress}%</span>
+                </div>
+
+                {/* Confidence */}
+                {analysis && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-gray-600 font-mono text-[10px]">Confidence:</span>
+                    <div className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${analysis.confidence}%`,
+                          background: analysis.confidence >= 70 ? "#22c55e" : analysis.confidence >= 40 ? "#eab308" : "#ef4444",
+                        }}
+                      />
+                    </div>
+                    <span className="text-gray-500 font-mono text-[10px] w-8 text-right">{analysis.confidence}%</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5">
-          {/* Error state */}
-          {error && (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 mb-4">
-              <p className="text-red-400 font-mono text-xs">
-                Analysis error: {error}
-              </p>
-              <button
-                onClick={fetchAnalysis}
-                className="mt-2 text-red-400 font-mono text-xs underline hover:text-red-300"
-              >
-                Retry
-              </button>
+        {/* RIGHT: Analysis detail */}
+        <div className="flex-1 overflow-y-auto bg-[#050810] p-6">
+          {!data && !loading && (
+            <div className="flex items-center justify-center h-full text-gray-600 font-mono text-sm">
+              Click Refresh to scan the market
             </div>
           )}
 
-          {/* Loading state */}
-          {loading && !data && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="relative w-12 h-12">
-                <div className="absolute inset-0 rounded-full border-2 border-red-500/20" />
-                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-red-500 animate-spin" />
-              </div>
-              <p className="text-gray-500 font-mono text-xs animate-pulse">
-                {agent.name} is analyzing the market...
-              </p>
+          {data && !selectedToken && (
+            <div className="flex items-center justify-center h-full text-gray-600 font-mono text-sm">
+              Select a token from the left to see analysis
             </div>
           )}
 
-          {/* Results */}
-          {data && (
-            <>
-              {/* Token table */}
-              <div className="overflow-x-auto mb-5">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-800">
-                      <th className="text-left text-gray-600 font-mono text-xs uppercase tracking-wider py-2 px-2">
-                        Token
-                      </th>
-                      <th className="text-right text-gray-600 font-mono text-xs uppercase tracking-wider py-2 px-2">
-                        Price
-                      </th>
-                      <th className="text-right text-gray-600 font-mono text-xs uppercase tracking-wider py-2 px-2">
-                        Vol 24H
-                      </th>
-                      <th className="text-center text-gray-600 font-mono text-xs uppercase tracking-wider py-2 px-2">
-                        Progress
-                      </th>
-                      <th className="text-center text-gray-600 font-mono text-xs uppercase tracking-wider py-2 px-2">
-                        Signal
-                      </th>
-                      <th className="text-center text-gray-600 font-mono text-xs uppercase tracking-wider py-2 px-2">
-                        Confidence
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.tokens.map((token) => {
-                      const analysis = data.result.analysis?.find(
-                        (a) =>
-                          a.token === token.name || a.token === token.symbol
-                      );
-                      const signal = analysis?.signal?.toUpperCase() || "SKIP";
-                      const style = SIGNAL_STYLES[signal] || SIGNAL_STYLES.SKIP;
-                      const isExpanded = expandedToken === token.name;
-
-                      return (
-                        <tr
-                          key={token.symbol}
-                          className="border-b border-gray-800/50 hover:bg-white/[0.02] cursor-pointer transition-colors"
-                          onClick={() =>
-                            setExpandedToken(isExpanded ? null : token.name)
-                          }
-                        >
-                          <td className="py-2.5 px-2">
-                            <div className="flex items-center gap-2">
-                              <TrendIcon trend={token.trend} />
-                              <div>
-                                <div className="text-white font-mono text-sm font-bold">
-                                  {token.name}
-                                </div>
-                                <div className="text-gray-600 font-mono text-xs">
-                                  {token.symbol}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="text-right py-2.5 px-2">
-                            <span className="text-gray-300 font-mono text-xs">
-                              {formatPrice(token.price)}
-                            </span>
-                          </td>
-                          <td className="text-right py-2.5 px-2">
-                            <span className="text-gray-400 font-mono text-xs">
-                              {formatVolume(token.volume_24h)}
-                            </span>
-                          </td>
-                          <td className="text-center py-2.5 px-2">
-                            <ProgressBar value={token.progress} />
-                          </td>
-                          <td className="text-center py-2.5 px-2">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded border font-mono text-xs font-bold ${style.bg} ${style.text} ${style.border}`}
-                            >
-                              {style.label}
-                            </span>
-                          </td>
-                          <td className="text-center py-2.5 px-2">
-                            {analysis ? (
-                              <ConfidenceBar value={analysis.confidence} />
-                            ) : (
-                              <span className="text-gray-600 font-mono text-xs">
-                                --
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          {data && selectedToken && (
+            <div className="space-y-6">
+              {/* Token header */}
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <h2 className="text-white font-mono text-2xl font-bold">{selectedTokenData?.name}</h2>
+                  <span className="text-gray-500 font-mono text-sm">{selectedTokenData?.symbol}</span>
+                  {selectedAnalysis && (
+                    <span className={`px-2 py-1 rounded text-xs font-mono font-bold ${SIGNAL_STYLES[selectedAnalysis.signal?.toUpperCase() || "SKIP"]?.bg} ${SIGNAL_STYLES[selectedAnalysis.signal?.toUpperCase() || "SKIP"]?.text} ${SIGNAL_STYLES[selectedAnalysis.signal?.toUpperCase() || "SKIP"]?.border} border`}>
+                      {SIGNAL_STYLES[selectedAnalysis.signal?.toUpperCase() || "SKIP"]?.icon} {selectedAnalysis.signal?.toUpperCase()}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Expanded reasoning */}
-              {expandedToken && (
-                <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 mb-5">
-                  <div className="text-gray-500 font-mono text-xs uppercase tracking-wider mb-2">
-                    AI Reasoning for {expandedToken}
+              {/* Token stats grid */}
+              {selectedTokenData && (
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="rounded-lg border border-gray-800 bg-gray-900/30 p-3">
+                    <div className="text-gray-500 font-mono text-[10px] uppercase mb-1">Price</div>
+                    <div className="text-white font-mono text-lg font-bold">{formatPrice(selectedTokenData.price)}</div>
                   </div>
-                  <p className="text-gray-300 font-mono text-xs leading-relaxed">
-                    {data.result.analysis?.find(
-                      (a) =>
-                        a.token === expandedToken ||
-                        a.token ===
-                          data.tokens.find((t) => t.name === expandedToken)
-                            ?.symbol
-                    )?.reasoning || "No analysis available for this token."}
-                  </p>
+                  <div className="rounded-lg border border-gray-800 bg-gray-900/30 p-3">
+                    <div className="text-gray-500 font-mono text-[10px] uppercase mb-1">Volume 24H</div>
+                    <div className="text-white font-mono text-lg font-bold">{formatVolume(selectedTokenData.volume_24h)}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-800 bg-gray-900/30 p-3">
+                    <div className="text-gray-500 font-mono text-[10px] uppercase mb-1">Holders</div>
+                    <div className="text-white font-mono text-lg font-bold">{selectedTokenData.holders}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-800 bg-gray-900/30 p-3">
+                    <div className="text-gray-500 font-mono text-[10px] uppercase mb-1">Bonding Progress</div>
+                    <div className="text-white font-mono text-lg font-bold">{typeof selectedTokenData.progress === 'number' ? selectedTokenData.progress.toFixed(1) : selectedTokenData.progress}%</div>
+                  </div>
                 </div>
               )}
 
-              {/* Top pick callout */}
-              {topPick && (
-                <div
-                  className="rounded-xl border border-emerald-500/25 p-4 mb-5"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(16,185,129,0.02) 100%)",
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-emerald-500 font-mono text-xs font-bold uppercase tracking-wider">
-                      Top Pick
-                    </span>
-                    <span className="text-emerald-400 font-mono text-sm font-bold">
-                      {topPick.token}
-                    </span>
-                    <span className="text-emerald-600 font-mono text-xs">
-                      {topPick.confidence}% confidence
-                    </span>
-                    {topPick.position_pct != null && (
-                      <span className="text-emerald-700 font-mono text-xs ml-auto">
-                        Position: {(topPick.position_pct * 100).toFixed(0)}%
-                      </span>
-                    )}
+              {/* AI Analysis */}
+              {selectedAnalysis && (
+                <>
+                  <div className="rounded-xl border border-gray-800 bg-gray-900/20 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-gray-400 font-mono text-xs uppercase tracking-wider font-bold">AI Reasoning</span>
+                      <span className="text-gray-600 font-mono text-xs">by {agent.name} ({strategy.label})</span>
+                    </div>
+                    <p className="text-gray-200 font-mono text-sm leading-relaxed">
+                      {selectedAnalysis.reasoning}
+                    </p>
                   </div>
-                  <p className="text-gray-300 font-mono text-xs leading-relaxed italic">
-                    &ldquo;{topPick.reasoning}&rdquo;
-                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-gray-800 bg-gray-900/30 p-4">
+                      <div className="text-gray-500 font-mono text-[10px] uppercase mb-2">Confidence Level</div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-3 bg-gray-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${selectedAnalysis.confidence}%`,
+                              background: selectedAnalysis.confidence >= 70 ? "linear-gradient(90deg, #059669, #22c55e)" : selectedAnalysis.confidence >= 40 ? "linear-gradient(90deg, #d97706, #eab308)" : "linear-gradient(90deg, #dc2626, #ef4444)",
+                            }}
+                          />
+                        </div>
+                        <span className="text-white font-mono text-xl font-bold">{selectedAnalysis.confidence}%</span>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-gray-800 bg-gray-900/30 p-4">
+                      <div className="text-gray-500 font-mono text-[10px] uppercase mb-2">Recommended Position</div>
+                      <div className="text-white font-mono text-xl font-bold">
+                        {selectedAnalysis.position_pct != null ? `${(selectedAnalysis.position_pct * 100).toFixed(0)}% of balance` : "N/A"}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Top pick highlight */}
+              {topPick && topPick.token !== selectedToken && (
+                <div className="rounded-xl border border-emerald-500/25 p-4" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(16,185,129,0.02) 100%)" }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-emerald-500 font-mono text-xs font-bold uppercase">Top Pick</span>
+                    <span className="text-emerald-400 font-mono text-sm font-bold">{topPick.token}</span>
+                    <span className="text-emerald-600 font-mono text-xs">{topPick.confidence}% confidence</span>
+                  </div>
+                  <p className="text-gray-400 font-mono text-xs italic">{topPick.reasoning}</p>
                 </div>
               )}
 
               {/* Strategy summary */}
-              {data.result.overall_strategy && (
-                <div className="rounded-xl border border-gray-800 bg-gray-900/30 p-4 mb-5">
-                  <div className="text-gray-500 font-mono text-xs uppercase tracking-wider mb-2">
-                    Strategy Summary
-                  </div>
+              {data.result.overall_strategy && !data.result.overall_strategy.startsWith("{") && (
+                <div className="rounded-xl border border-gray-800 bg-gray-900/20 p-4">
+                  <div className="text-gray-500 font-mono text-xs uppercase tracking-wider mb-2">Overall Strategy</div>
                   <p className="text-gray-300 font-mono text-xs leading-relaxed italic">
                     &ldquo;{data.result.overall_strategy}&rdquo;
                   </p>
                 </div>
               )}
 
-              {/* Footer status */}
-              <div className="flex items-center justify-between text-gray-600 font-mono text-xs">
-                <span>
-                  Last updated:{" "}
-                  {lastUpdate
-                    ? lastUpdate.toLocaleTimeString()
-                    : "--:--:--"}
-                </span>
-                <span>
-                  Auto-refresh in {countdown}s
-                  {loading && (
-                    <span className="ml-2 text-red-400 animate-pulse">
-                      Scanning...
-                    </span>
-                  )}
-                </span>
+              {/* Champion genome key traits */}
+              <div className="rounded-xl border border-gray-800 bg-gray-900/20 p-4">
+                <div className="text-gray-500 font-mono text-xs uppercase tracking-wider mb-3">Champion Genome Traits</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: "risk_appetite", label: "Risk" },
+                    { key: "contrarian", label: "Contrarian" },
+                    { key: "follow_leader", label: "Follow" },
+                    { key: "graduation_bias", label: "Grad Bias" },
+                    { key: "entry_threshold", label: "Entry" },
+                    { key: "experiment_rate", label: "Experiment" },
+                  ].map(({ key, label }) => {
+                    const val = (agent.genome as unknown as Record<string, number>)[key] ?? 0;
+                    return (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="text-gray-600 font-mono text-[10px] w-16 shrink-0">{label}</span>
+                        <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-emerald-500/70" style={{ width: `${val * 100}%` }} />
+                        </div>
+                        <span className="text-gray-500 font-mono text-[10px] w-8 text-right">{(val * 100).toFixed(0)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </>
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+              <p className="text-red-400 font-mono text-xs">Error: {error}</p>
+              <button onClick={fetchAnalysis} className="mt-2 text-red-400 font-mono text-xs underline">Retry</button>
+            </div>
           )}
         </div>
       </div>

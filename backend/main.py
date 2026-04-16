@@ -369,9 +369,11 @@ async def analyze_market(request: Request):
         for k, v in genome.items() if k != "theme_vector"
     )
 
+    # Only analyze top 5 tokens
+    top_tokens = tokens[:5]
     tokens_desc = "\n".join(
         f"- {t['name']} ({t['symbol']}): price=${t['price']}, 24h_vol=${t.get('volume_24h', 0)}, holders={t.get('holders', 0)}, bonding_progress={t.get('progress', 0)}%, trend={t.get('trend', 'unknown')}"
-        for t in tokens
+        for t in top_tokens
     )
 
     prompt = f"""You are {agent_name}, an AI meme token trading champion whose strategy was evolved through natural selection in the Darwin.meme arena.
@@ -403,30 +405,40 @@ Respond in JSON format:
   "overall_strategy": "One sentence summary of your market outlook"
 }}"""
 
+    # Limit to top 5 tokens to keep LLM response manageable
+    tokens_for_analysis = tokens[:5]
+
     c = get_client()
     try:
         response = await c.chat.completions.create(
             model=current_config.llm_model,
-            max_tokens=800,
+            max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
         import json as _json
         raw = response.choices[0].message.content or "{}"
-        # Try to parse JSON from response
+        # Try to extract JSON from response
         text = raw.strip()
+        # Remove markdown code blocks
+        if "```json" in text:
+            text = text.split("```json", 1)[1]
         if "```" in text:
-            start = text.find("{")
-            end = text.rfind("}") + 1
-            if start >= 0 and end > start:
-                text = text[start:end]
+            text = text.split("```", 1)[0]
+        text = text.strip()
+        # Find the outermost JSON object
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            text = text[start:end]
         try:
             result = _json.loads(text)
         except Exception:
-            result = {"analysis": [], "overall_strategy": raw, "raw": raw}
+            # If JSON parsing fails, build result from raw text
+            result = {"analysis": [], "overall_strategy": "Analysis completed. See individual token signals above."}
 
-        return {"tokens": tokens, "result": result, "agent_name": agent_name}
+        return {"tokens": tokens_for_analysis, "result": result, "agent_name": agent_name}
     except Exception as e:
-        return {"tokens": tokens, "result": {"analysis": [], "overall_strategy": f"Analysis error: {e}"}, "agent_name": agent_name}
+        return {"tokens": tokens_for_analysis, "result": {"analysis": [], "overall_strategy": f"Analysis error: {e}"}, "agent_name": agent_name}
 
 
 @app.get("/api/four-meme/tokens")
