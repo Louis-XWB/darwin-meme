@@ -89,11 +89,21 @@ export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisP
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(30);
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
+  const [sortType, setSortType] = useState("HOT");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const strategy = getDominantStrategy(agent.genome as unknown as Record<string, unknown>);
   const roi = ((agent.balance - 100) / 100 * 100).toFixed(1);
+
+  const SORT_OPTIONS = [
+    { value: "HOT", label: "Hot" },
+    { value: "NEW", label: "New" },
+    { value: "VOL", label: "Volume" },
+    { value: "PROGRESS", label: "Near Grad" },
+    { value: "CAP", label: "Market Cap" },
+    { value: "LAST", label: "Recent" },
+  ];
 
   const fetchAnalysis = useCallback(async () => {
     setLoading(true);
@@ -102,7 +112,7 @@ export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisP
       const res = await fetch(`${BACKEND_URL}/api/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ genome: agent.genome, agent_name: agent.name }),
+        body: JSON.stringify({ genome: agent.genome, agent_name: agent.name, sort_type: sortType }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const result: AnalysisResult = await res.json();
@@ -118,9 +128,9 @@ export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisP
     } finally {
       setLoading(false);
     }
-  }, [agent, selectedToken]);
+  }, [agent, selectedToken, sortType]);
 
-  useEffect(() => { fetchAnalysis(); }, []);
+  useEffect(() => { fetchAnalysis(); }, [sortType]);
   useEffect(() => {
     timerRef.current = setInterval(fetchAnalysis, 30_000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
@@ -171,7 +181,22 @@ export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisP
         {/* LEFT: Token list */}
         <div className="w-[420px] border-r border-gray-800/50 overflow-y-auto bg-[#060a12]">
           <div className="px-4 py-3 border-b border-gray-800/50">
-            <span className="text-gray-500 font-mono text-xs uppercase tracking-wider">Four.meme Live Tokens</span>
+            <div className="text-gray-500 font-mono text-xs uppercase tracking-wider mb-2">Four.meme Live Tokens</div>
+            <div className="flex flex-wrap gap-1">
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setSortType(opt.value); setSelectedToken(null); }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
+                    sortType === opt.value
+                      ? "bg-red-500/20 text-red-400 border border-red-500/40"
+                      : "text-gray-500 hover:text-gray-300 border border-gray-800 hover:border-gray-600"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {loading && !data && (

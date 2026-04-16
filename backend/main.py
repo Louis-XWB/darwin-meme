@@ -293,14 +293,14 @@ async def run_simulation():
         await sio.emit("sim_stopped", {})
 
 
-async def get_real_tokens():
+async def get_real_tokens(sort_type: str = "HOT"):
     """Fetch real Four.meme tokens directly from their public API."""
     try:
         async with httpx.AsyncClient() as http:
             resp = await http.post(
                 "https://four.meme/meme-api/v1/public/token/search",
                 json={
-                    "type": "HOT",
+                    "type": sort_type,
                     "listType": "NOR",
                     "pageIndex": 1,
                     "pageSize": 10,
@@ -350,8 +350,9 @@ async def analyze_market(request: Request):
     genome = body.get("genome", {})
     agent_name = body.get("agent_name", "Champion")
 
-    # Get real tokens (or mock if no API key)
-    tokens = await get_real_tokens()
+    # Get real tokens (or mock if unavailable)
+    sort_type = body.get("sort_type", "HOT")
+    tokens = await get_real_tokens(sort_type=sort_type)
 
     if not tokens:
         # Mock data for demo
@@ -369,8 +370,8 @@ async def analyze_market(request: Request):
         for k, v in genome.items() if k != "theme_vector"
     )
 
-    # Only analyze top 5 tokens
-    top_tokens = tokens[:5]
+    # Analyze top tokens
+    top_tokens = tokens[:10]
     tokens_desc = "\n".join(
         f"- {t['name']} ({t['symbol']}): price=${t['price']}, 24h_vol=${t.get('volume_24h', 0)}, holders={t.get('holders', 0)}, bonding_progress={t.get('progress', 0)}%, trend={t.get('trend', 'unknown')}"
         for t in top_tokens
@@ -405,8 +406,8 @@ Respond in JSON format:
   "overall_strategy": "One sentence summary of your market outlook"
 }}"""
 
-    # Limit to top 5 tokens to keep LLM response manageable
-    tokens_for_analysis = tokens[:5]
+    # Limit to top 10 tokens
+    tokens_for_analysis = tokens[:10]
 
     c = get_client()
     try:
