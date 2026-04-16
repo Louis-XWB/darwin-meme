@@ -53,6 +53,152 @@ function downloadGenome(agent: AgentData) {
   URL.revokeObjectURL(url);
 }
 
+function generateSkill(agent: AgentData, totalGenerations: number): string {
+  const g = agent.genome as unknown as Record<string, number>;
+  const strategy = getDominantStrategy(g);
+  const roi = ((agent.balance - 100) / 100 * 100).toFixed(1);
+
+  // Describe personality based on genome values
+  const traits: string[] = [];
+  if (g.risk_appetite > 0.7) traits.push("highly aggressive risk-taker");
+  else if (g.risk_appetite < 0.3) traits.push("conservative and risk-averse");
+  else traits.push("balanced risk tolerance");
+
+  if (g.contrarian > 0.7) traits.push("strong contrarian who buys fear and sells greed");
+  else if (g.follow_leader > 0.7) traits.push("trend follower who mirrors top performers");
+
+  if (g.creation_frequency > 0.7) traits.push("prolific token creator who drives market narratives");
+  else if (g.creation_frequency < 0.2) traits.push("pure trader who never creates tokens");
+
+  if (g.experiment_rate > 0.7) traits.push("constant experimenter always testing new hypotheses");
+  if (g.hype_intensity > 0.7) traits.push("master of hype and market manipulation");
+  if (g.graduation_bias > 0.7) traits.push("graduation hunter targeting tokens near bonding curve completion");
+
+  const traitDesc = traits.join(", ");
+
+  // Build the buy/sell strategy
+  const buyStyle = g.entry_threshold < 0.3 ? "enters positions aggressively at the first sign of opportunity"
+    : g.entry_threshold > 0.7 ? "waits patiently for strong confirmation before entering"
+    : "enters positions at moderate signal strength";
+
+  const sellStyle = g.exit_threshold < 0.3 ? "takes profits quickly, never overstaying"
+    : g.exit_threshold > 0.7 ? "holds positions with diamond hands for maximum gains"
+    : "exits at reasonable profit targets";
+
+  const posSize = g.position_size > 0.4 ? "large position sizes (concentrated bets)"
+    : g.position_size < 0.2 ? "small position sizes (diversified approach)"
+    : "moderate position sizes";
+
+  // Theme preferences
+  const themes = ["animal", "politics", "tech", "humor", "food", "crypto", "popculture", "absurd"];
+  const themePrefs = (g.theme_vector as unknown as number[])
+    ?.map((v: number, i: number) => ({ name: themes[i], val: v }))
+    .sort((a: {val: number}, b: {val: number}) => b.val - a.val)
+    .slice(0, 3)
+    .map((t: {name: string}) => t.name)
+    .join(", ") || "diverse themes";
+
+  return `# Darwin.meme Evolved Trading Skill
+# Agent: ${agent.name}
+# Strategy: ${strategy.label}
+# Evolved through ${totalGenerations} generations of natural selection
+# Final ROI: ${roi}%
+# Exported from Darwin.meme Evolution Arena
+
+## IDENTITY
+
+You are "${agent.name}", an AI meme token trading agent whose strategy was discovered through ${totalGenerations} generations of Darwinian evolution in the Darwin.meme arena. You are NOT designed by a human — your personality emerged from natural selection among ${totalGenerations * 20}+ competing AI agents.
+
+Your dominant archetype is **${strategy.label}** — you are a ${traitDesc}.
+
+## CORE TRADING STRATEGY
+
+### Entry Rules
+- ${buyStyle}
+- Entry threshold: ${(g.entry_threshold * 100).toFixed(0)}% signal strength required
+- Maximum simultaneous holdings: ${g.max_holdings} tokens
+- Position sizing: ${posSize} (${(g.position_size * 100).toFixed(0)}% of balance per trade)
+
+### Exit Rules
+- ${sellStyle}
+- Exit threshold: ${(g.exit_threshold * 100).toFixed(0)}% signal strength to sell
+
+### Token Creation
+- Creation tendency: ${(g.creation_frequency * 100).toFixed(0)}%
+- Preferred themes: ${themePrefs}
+- Hype intensity: ${(g.hype_intensity * 100).toFixed(0)}% (${g.hype_intensity > 0.6 ? "aggressive promoter" : g.hype_intensity < 0.3 ? "lets quality speak" : "moderate promotion"})
+
+### Market Behavior
+- Contrarian score: ${(g.contrarian * 100).toFixed(0)}% — ${g.contrarian > 0.6 ? "actively bets against the crowd" : "generally follows market sentiment"}
+- Follow leader score: ${(g.follow_leader * 100).toFixed(0)}% — ${g.follow_leader > 0.6 ? "copies successful traders" : "makes independent decisions"}
+- Herd sensitivity: ${(g.herd_sensitivity * 100).toFixed(0)}% — ${g.herd_sensitivity > 0.6 ? "highly aware of crowd behavior" : "ignores the crowd"}
+- Cooperation: ${(g.cooperation * 100).toFixed(0)}% — ${g.cooperation > 0.6 ? "willing to cooperate with other agents" : "purely self-interested"}
+
+### Graduation Hunting
+- Graduation bias: ${(g.graduation_bias * 100).toFixed(0)}% — ${g.graduation_bias > 0.6 ? "actively targets tokens near graduation for quick profits" : "does not prioritize graduation timing"}
+
+## ADAPTATION & LEARNING
+
+- Experiment rate: ${(g.experiment_rate * 100).toFixed(0)}% — ${g.experiment_rate > 0.5 ? "frequently tests new hypotheses and adapts" : "sticks to proven strategies"}
+- Adaptation speed: ${(g.adaptation_speed * 100).toFixed(0)}% — ${g.adaptation_speed > 0.5 ? "quickly adjusts to market changes" : "slow and steady approach"}
+- Memory weight: ${(g.memory_weight * 100).toFixed(0)}% — ${g.memory_weight > 0.5 ? "heavily influenced by past experience" : "focuses on current conditions"}
+- Exploration vs Exploit: ${(g.exploration_vs_exploit * 100).toFixed(0)}% — ${g.exploration_vs_exploit > 0.5 ? "explores new opportunities" : "exploits known profitable patterns"}
+
+## RAW GENOME (25 dimensions)
+
+\`\`\`json
+${JSON.stringify(agent.genome, null, 2)}
+\`\`\`
+
+## USAGE
+
+Use this skill as a system prompt for any LLM-powered trading agent. The genome parameters above define the agent's personality — inject them into your agent's decision-making loop.
+
+### Example Integration
+\`\`\`
+System: [This entire skill file]
+User: "Current market: [tokens, prices, events]. Your balance: $X. What action do you take?"
+Agent: {"action": "buy", "token_id": "...", "amount": ..., "reasoning": "..."}
+\`\`\`
+
+## PROVENANCE
+
+- Evolved in: Darwin.meme Evolution Arena
+- Selection method: Tournament selection + single-point crossover + Gaussian mutation
+- Fitness function: 40% ROI + 30% token survival + 20% strategy uniqueness + 10% risk-adjusted return
+- Competition: Survived against ${totalGenerations * 20} total agent-generations
+- Platform: Four.meme compatible (BNB Chain meme token launchpad)
+
+---
+Discovered by evolution, not designed by humans.
+Darwin.meme — https://darwin.meme
+`;
+}
+
+function downloadSkill(agent: AgentData, totalGenerations: number) {
+  const skill = generateSkill(agent, totalGenerations);
+  const blob = new Blob([skill], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${agent.name}-evolved-skill.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadAllSkills(agents: AgentData[], totalGenerations: number) {
+  const skills = agents.map((a, i) => {
+    return `${"=".repeat(60)}\n# RANK #${i + 1}\n${"=".repeat(60)}\n\n${generateSkill(a, totalGenerations)}`;
+  }).join("\n\n");
+  const blob = new Blob([skills], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "darwin-meme-all-evolved-skills.md";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function downloadAllGenomes(agents: AgentData[]) {
   const data = JSON.stringify(
     agents.map((a) => ({ name: a.name, balance: a.balance, genome: a.genome })),
@@ -214,7 +360,13 @@ function ChampionCard({ agent, totalGenerations }: { agent: AgentData; totalGene
             onClick={() => downloadGenome(agent)}
             className="flex-1 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-mono text-xs font-bold hover:bg-emerald-500/20 transition-colors"
           >
-            Download Genome JSON
+            Export Genome
+          </button>
+          <button
+            onClick={() => downloadSkill(agent, totalGenerations)}
+            className="flex-1 py-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 font-mono text-xs font-bold hover:bg-cyan-500/20 transition-colors"
+          >
+            Export Skill
           </button>
           <button
             onClick={() => setShowDeploy(true)}
@@ -280,13 +432,21 @@ function RunnerUpCard({ agent, rank }: { agent: AgentData; rank: number }) {
         <div className="flex gap-1 mt-1">
           <button
             onClick={() => downloadGenome(agent)}
-            className="flex-1 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/5 text-emerald-500 font-mono text-xs hover:bg-emerald-500/15 transition-colors"
+            className="flex-1 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/5 text-emerald-500 font-mono text-[10px] hover:bg-emerald-500/15 transition-colors"
+            title="Export Genome JSON"
           >
-            DL
+            Genome
+          </button>
+          <button
+            onClick={() => downloadSkill(agent, 0)}
+            className="flex-1 py-1.5 rounded border border-cyan-500/30 bg-cyan-500/5 text-cyan-500 font-mono text-[10px] hover:bg-cyan-500/15 transition-colors"
+            title="Export Trading Skill"
+          >
+            Skill
           </button>
           <button
             onClick={() => setShowDeploy(true)}
-            className="flex-1 py-1.5 rounded border border-violet-500/30 bg-violet-500/5 text-violet-500 font-mono text-xs hover:bg-violet-500/15 transition-colors"
+            className="flex-1 py-1.5 rounded border border-violet-500/30 bg-violet-500/5 text-violet-500 font-mono text-[10px] hover:bg-violet-500/15 transition-colors"
           >
             Deploy
           </button>
@@ -428,7 +588,14 @@ export function EvolutionResults({
               className="py-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-mono text-xs font-bold hover:bg-emerald-500/20 transition-all hover:border-emerald-500/60"
               style={{ textShadow: "0 0 8px rgba(16,185,129,0.4)" }}
             >
-              Download All Genomes
+              Export All Genomes
+            </button>
+            <button
+              onClick={() => downloadAllSkills(topAgents, totalGenerations)}
+              className="py-3 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 font-mono text-xs font-bold hover:bg-cyan-500/20 transition-all hover:border-cyan-500/60"
+              style={{ textShadow: "0 0 8px rgba(6,182,212,0.4)" }}
+            >
+              Export All Skills
             </button>
             <button
               onClick={() => setShowDeployAll(true)}
@@ -439,7 +606,7 @@ export function EvolutionResults({
             </button>
             <button
               onClick={onRestart}
-              className="py-3 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 font-mono text-xs font-bold hover:bg-cyan-500/20 transition-all hover:border-cyan-500/60"
+              className="py-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 text-yellow-400 font-mono text-xs font-bold hover:bg-yellow-500/20 transition-all hover:border-yellow-500/60"
             >
               New Evolution
             </button>
