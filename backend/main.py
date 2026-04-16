@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 
+import httpx
 import openai
 import socketio
 import uvicorn
@@ -293,32 +294,52 @@ async def run_simulation():
 
 
 async def get_real_tokens():
-    """Try to fetch real Four.meme tokens via Bitquery."""
+    """Fetch real Four.meme tokens directly from their public API."""
     try:
-        from integrations.bitquery import query_four_meme_tokens
-        raw = await query_four_meme_tokens(limit=10)
-        tokens = []
-        seen: set[str] = set()
-        for item in raw:
-            trade = item.get("Trade", {})
-            currency = trade.get("Currency", {})
-            name = currency.get("Name", "Unknown")
-            symbol = currency.get("Symbol", "???")
-            if symbol in seen:
-                continue
-            seen.add(symbol)
-            tokens.append({
-                "name": name,
-                "symbol": symbol,
-                "price": float(trade.get("Price", 0)),
-                "volume_24h": float(trade.get("Amount", 0)),
-                "holders": 0,
-                "progress": 0,
-                "trend": "unknown",
-                "address": currency.get("SmartContract", ""),
-            })
-        return tokens if tokens else None
-    except Exception:
+        async with httpx.AsyncClient() as http:
+            resp = await http.post(
+                "https://four.meme/meme-api/v1/public/token/search",
+                json={
+                    "type": "HOT",
+                    "listType": "NOR",
+                    "pageIndex": 1,
+                    "pageSize": 10,
+                    "status": "PUBLISH",
+                    "sort": "DESC",
+                },
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            raw_data = data.get("data", [])
+            items = raw_data if isinstance(raw_data, list) else raw_data.get("list", []) if isinstance(raw_data, dict) else []
+            if not items:
+                return None
+            tokens = []
+            for item in items:
+                price = float(item.get("price", 0))
+                progress = float(item.get("progress", 0))
+                volume = float(item.get("volume", 0) or item.get("day1Vol", 0) or 0)
+                holders = int(item.get("hold", 0))
+                increase = float(item.get("increase", 0) or 0)
+                trend = "up" if increase > 0 else "down" if increase < 0 else "flat"
+                tokens.append({
+                    "name": item.get("name", "Unknown"),
+                    "symbol": item.get("shortName", item.get("name", "???")),
+                    "price": price,
+                    "volume_24h": volume,
+                    "holders": holders,
+                    "progress": progress,
+                    "trend": trend,
+                    "address": item.get("tokenAddress", ""),
+                    "increase": increase,
+                    "cap": float(item.get("cap", 0)),
+                    "img": item.get("img", ""),
+                })
+            return tokens
+    except Exception as e:
+        print(f"Four.meme API error: {e}")
         return None
 
 
