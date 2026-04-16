@@ -6,6 +6,7 @@ import type {
   AgentData,
   GenerationEndPayload,
   GenerationStats,
+  SimCompletePayload,
   SimulationState,
   TickPayload,
   TokenData,
@@ -26,6 +27,10 @@ const initialState: SimulationState = {
   allStats: [],
   summaries: [],
   speed: 1.0,
+  completed: false,
+  topAgents: [],
+  totalGenerations: 0,
+  finalSummary: "",
 };
 
 export function useSimulation() {
@@ -88,6 +93,18 @@ export function useSimulation() {
       }));
     });
 
+    socket.on("sim_complete", (data: SimCompletePayload) => {
+      setState((s) => ({
+        ...s,
+        running: false,
+        completed: true,
+        topAgents: data.top_agents,
+        totalGenerations: data.total_generations,
+        allStats: data.all_stats,
+        finalSummary: data.final_summary,
+      }));
+    });
+
     socket.connect();
 
     return () => {
@@ -98,6 +115,7 @@ export function useSimulation() {
       socket.off("generation_start");
       socket.off("tick");
       socket.off("generation_end");
+      socket.off("sim_complete");
       socket.disconnect();
     };
   }, []);
@@ -129,5 +147,30 @@ export function useSimulation() {
     socket.emit("update_settings", settings);
   }, []);
 
-  return { state, startSimulation, stopSimulation, setSpeed, updateSettings };
+  const dismissResults = useCallback(() => {
+    setState((s) => ({ ...s, completed: false }));
+  }, []);
+
+  const restartSimulation = useCallback((speed: number = 1.0) => {
+    setState((s) => ({
+      ...s,
+      completed: false,
+      topAgents: [],
+      totalGenerations: 0,
+      finalSummary: "",
+      allStats: [],
+      summaries: [],
+      generation: 0,
+      tick: 0,
+      agents: [],
+      tokens: [],
+      trades: [],
+      events: [],
+      commentary: [],
+    }));
+    const socket = getSocket();
+    socket.emit("start_simulation", { speed });
+  }, []);
+
+  return { state, startSimulation, stopSimulation, setSpeed, updateSettings, dismissResults, restartSimulation };
 }

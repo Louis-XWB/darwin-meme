@@ -9,11 +9,12 @@ import { EvolutionView } from "@/components/evolution/EvolutionView";
 import { CommentatorView } from "@/components/commentator/CommentatorView";
 import { GameView } from "@/components/game/GameView";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { EvolutionResults } from "@/components/results/EvolutionResults";
 
 /* ── Dashboard (existing) ── */
 export default function Dashboard() {
   const [launched, setLaunched] = useState(false);
-  const { state, startSimulation, stopSimulation, setSpeed, updateSettings } = useSimulation();
+  const { state, startSimulation, stopSimulation, setSpeed, updateSettings, dismissResults, restartSimulation } = useSimulation();
   const [view, setView] = useState<"data" | "game">("data");
   const prevGeneration = useRef(0);
   const [settings, setSettings] = useState({
@@ -33,7 +34,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col relative">
       <Controls
         running={state.running}
         connected={state.connected}
@@ -78,6 +79,17 @@ export default function Dashboard() {
             allStats={state.allStats}
           />
         </div>
+      )}
+
+      {state.completed && (
+        <EvolutionResults
+          topAgents={state.topAgents}
+          totalGenerations={state.totalGenerations}
+          allStats={state.allStats}
+          finalSummary={state.finalSummary}
+          onClose={dismissResults}
+          onRestart={() => restartSimulation(state.speed)}
+        />
       )}
     </div>
   );

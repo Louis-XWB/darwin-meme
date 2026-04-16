@@ -107,6 +107,13 @@ export interface GenerationEndPayload {
   agents: AgentData[];
 }
 
+export interface SimCompletePayload {
+  total_generations: number;
+  top_agents: AgentData[];
+  all_stats: GenerationStats[];
+  final_summary: string;
+}
+
 export interface SimulationState {
   connected: boolean;
   running: boolean;
@@ -120,4 +127,8 @@ export interface SimulationState {
   allStats: GenerationStats[];
   summaries: string[];
   speed: number;
+  completed: boolean;
+  topAgents: AgentData[];
+  totalGenerations: number;
+  finalSummary: string;
 }

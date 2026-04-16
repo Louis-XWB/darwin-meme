@@ -210,7 +210,7 @@ async def run_simulation():
     global sim_running
     sim_running = True
 
-    evo = EvolutionEngine(CONFIG)
+    evo = EvolutionEngine(current_config)
     population = evo.init_population()
     all_gen_stats: list[dict] = []
 
@@ -221,7 +221,7 @@ async def run_simulation():
             if not sim_running:
                 break
 
-            market = MarketSimulator(CONFIG)
+            market = MarketSimulator(current_config)
             experiment_trackers: dict[str, ExperimentTracker] = {}
 
             await sio.emit("generation_start", {
@@ -277,6 +277,15 @@ async def run_simulation():
                 "all_stats": all_gen_stats,
                 "agents": [a.to_dict() for a in population],
             })
+
+        # Emit final results after all generations complete
+        sorted_pop = sorted(population, key=lambda a: a.balance, reverse=True)
+        await sio.emit("sim_complete", {
+            "total_generations": len(all_gen_stats),
+            "top_agents": [a.to_dict() for a in sorted_pop[:5]],
+            "all_stats": all_gen_stats,
+            "final_summary": locals().get("summary", ""),
+        })
 
     finally:
         sim_running = False
