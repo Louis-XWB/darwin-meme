@@ -442,6 +442,21 @@ Respond in JSON format:
         return {"tokens": tokens_for_analysis, "result": {"analysis": [], "overall_strategy": f"Analysis error: {e}"}, "agent_name": agent_name}
 
 
+@app.post("/api/tokens")
+async def list_tokens(request: Request):
+    """Fetch Four.meme tokens without AI analysis (fast)."""
+    body = await request.json()
+    sort_type = body.get("sort_type", "HOT")
+    tokens = await get_real_tokens(sort_type=sort_type)
+    if not tokens:
+        tokens = [
+            {"name": "DOGGO", "symbol": "DOGGO", "price": 0.00234, "volume_24h": 12500, "holders": 45, "progress": 67, "trend": "up"},
+            {"name": "MOONCAT", "symbol": "MOON", "price": 0.00891, "volume_24h": 45000, "holders": 120, "progress": 91, "trend": "up"},
+            {"name": "PEPE3.0", "symbol": "PEPE3", "price": 0.00012, "volume_24h": 800, "holders": 8, "progress": 5, "trend": "down"},
+        ]
+    return {"tokens": tokens}
+
+
 @app.post("/api/trade")
 async def execute_trade(request: Request):
     """Execute a trade on Four.meme (requires BSC wallet)."""
