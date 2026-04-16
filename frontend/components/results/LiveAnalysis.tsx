@@ -30,6 +30,7 @@ interface MarketToken {
   trend: string;
   increase?: number;
   cap?: number;
+  address?: string;
 }
 
 interface AnalysisResult {
@@ -82,6 +83,19 @@ function formatVolume(vol: number): string {
   return `$${vol.toFixed(0)}`;
 }
 
+interface TradeResult {
+  status: string;
+  action?: string;
+  token_name?: string;
+  token_address?: string;
+  amount_bnb?: number;
+  agent_name?: string;
+  reasoning?: string;
+  timestamp?: string;
+  message?: string;
+  bscscan_url?: string;
+}
+
 export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisProps) {
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,6 +104,10 @@ export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisP
   const [countdown, setCountdown] = useState(30);
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const [sortType, setSortType] = useState("HOT");
+  const [tradeLoading, setTradeLoading] = useState(false);
+  const [tradeResult, setTradeResult] = useState<TradeResult | null>(null);
+  const [tradeAmount, setTradeAmount] = useState("0.001");
+  const [tradeHistory, setTradeHistory] = useState<TradeResult[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -139,6 +157,34 @@ export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisP
     countdownRef.current = setInterval(() => setCountdown((p) => p <= 1 ? 30 : p - 1), 1_000);
     return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
   }, []);
+
+  const handleExecuteTrade = async () => {
+    if (!selectedTokenData || !selectedAnalysis) return;
+    setTradeLoading(true);
+    setTradeResult(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/trade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "buy",
+          token_address: selectedTokenData.address || "",
+          token_name: selectedTokenData.name,
+          amount_bnb: parseFloat(tradeAmount),
+          agent_name: agent.name,
+          reasoning: selectedAnalysis.reasoning,
+        }),
+      });
+      const result: TradeResult = await res.json();
+      setTradeResult(result);
+      setTradeHistory((prev) => [result, ...prev].slice(0, 10));
+    } catch (e) {
+      const errResult: TradeResult = { status: "error", message: e instanceof Error ? e.message : "Failed" };
+      setTradeResult(errResult);
+    } finally {
+      setTradeLoading(false);
+    }
+  };
 
   const selectedAnalysis = data?.result.analysis?.find(
     (a) => a.token === selectedToken || a.token === data?.tokens.find((t) => t.name === selectedToken)?.symbol
@@ -364,6 +410,70 @@ export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisP
                 </>
               )}
 
+              {/* Execute Trade section - only show for BUY signals */}
+              {selectedAnalysis && selectedAnalysis.signal?.toUpperCase() === "BUY" && selectedTokenData && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <div className="text-emerald-400 font-mono text-xs uppercase tracking-wider font-bold mb-1">Execute Trade</div>
+                      <div className="text-gray-500 font-mono text-[10px]">
+                        {agent.name} recommends buying {selectedTokenData.name}
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleExecuteTrade}
+                      disabled={tradeLoading}
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-sm font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {tradeLoading ? (
+                        <>
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Executing...
+                        </>
+                      ) : (
+                        <>🟢 Execute BUY</>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Trade amount input */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-gray-500 font-mono text-xs">Amount:</span>
+                    <input
+                      type="number"
+                      value={tradeAmount}
+                      onChange={(e) => setTradeAmount(e.target.value)}
+                      className="w-32 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                      step="0.001"
+                      min="0.001"
+                    />
+                    <span className="text-gray-500 font-mono text-xs">BNB</span>
+                  </div>
+
+                  {/* Trade result */}
+                  {tradeResult && (
+                    <div className={`rounded-lg p-3 font-mono text-xs ${
+                      tradeResult.status === "no_wallet" ? "bg-yellow-500/10 border border-yellow-500/30 text-yellow-400" :
+                      tradeResult.status === "error" ? "bg-red-500/10 border border-red-500/30 text-red-400" :
+                      "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                    }`}>
+                      <div className="font-bold mb-1">
+                        {tradeResult.status === "no_wallet" ? "⚠️ Wallet Not Configured" :
+                         tradeResult.status === "error" ? "❌ Trade Failed" :
+                         tradeResult.status === "attempted" ? "✅ Trade Submitted" :
+                         "📋 Trade Pending"}
+                      </div>
+                      <div className="text-gray-400">{tradeResult.message}</div>
+                      {tradeResult.bscscan_url && (
+                        <a href={tradeResult.bscscan_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline mt-1 block">
+                          View on BscScan →
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Top pick highlight */}
               {topPick && topPick.token !== selectedToken && (
                 <div className="rounded-xl border border-emerald-500/25 p-4" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(16,185,129,0.02) 100%)" }}>
@@ -411,6 +521,37 @@ export function LiveAnalysis({ agent, totalGenerations, onClose }: LiveAnalysisP
                   })}
                 </div>
               </div>
+
+              {/* Trade history */}
+              {tradeHistory.length > 0 && (
+                <div className="rounded-xl border border-gray-800 bg-gray-900/20 p-4">
+                  <div className="text-gray-500 font-mono text-xs uppercase tracking-wider mb-3">Trade History</div>
+                  <div className="space-y-2">
+                    {tradeHistory.map((trade, idx) => (
+                      <div key={idx} className={`rounded-lg p-2 font-mono text-[10px] flex items-center justify-between ${
+                        trade.status === "no_wallet" ? "bg-yellow-500/5 border border-yellow-500/20" :
+                        trade.status === "error" ? "bg-red-500/5 border border-red-500/20" :
+                        "bg-emerald-500/5 border border-emerald-500/20"
+                      }`}>
+                        <div>
+                          <span className={`font-bold mr-2 ${
+                            trade.status === "no_wallet" ? "text-yellow-400" :
+                            trade.status === "error" ? "text-red-400" :
+                            "text-emerald-400"
+                          }`}>
+                            {trade.status === "no_wallet" ? "⚠️" : trade.status === "error" ? "❌" : "✅"}
+                            {" "}{trade.action?.toUpperCase()} {trade.token_name}
+                          </span>
+                          <span className="text-gray-600">{trade.amount_bnb} BNB</span>
+                        </div>
+                        <span className="text-gray-700">
+                          {trade.timestamp ? new Date(trade.timestamp).toLocaleTimeString() : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

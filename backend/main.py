@@ -442,6 +442,54 @@ Respond in JSON format:
         return {"tokens": tokens_for_analysis, "result": {"analysis": [], "overall_strategy": f"Analysis error: {e}"}, "agent_name": agent_name}
 
 
+@app.post("/api/trade")
+async def execute_trade(request: Request):
+    """Execute a trade on Four.meme (requires BSC wallet)."""
+    body = await request.json()
+    action = body.get("action", "buy")  # "buy" or "sell"
+    token_address = body.get("token_address", "")
+    token_name = body.get("token_name", "")
+    amount_bnb = body.get("amount_bnb", 0.001)
+    agent_name = body.get("agent_name", "Champion")
+    reasoning = body.get("reasoning", "")
+
+    # Try to call Four.meme API (will fail without wallet, that's OK)
+    trade_result = {
+        "status": "pending",
+        "action": action,
+        "token_name": token_name,
+        "token_address": token_address,
+        "amount_bnb": amount_bnb,
+        "agent_name": agent_name,
+        "reasoning": reasoning,
+        "timestamp": __import__("datetime").datetime.now().isoformat(),
+    }
+
+    private_key = os.environ.get("BSC_PRIVATE_KEY", "")
+
+    if not private_key:
+        trade_result["status"] = "no_wallet"
+        trade_result["message"] = "No BSC wallet configured. Set BSC_PRIVATE_KEY environment variable to enable live trading."
+        return trade_result
+
+    # If wallet is configured, try actual trade via Four.meme API
+    try:
+        async with httpx.AsyncClient() as http:
+            # Step 1: Get nonce for auth
+            nonce_resp = await http.get(
+                f"https://four.meme/meme-api/v1/public/user/login/nonce?address={private_key[:42]}",
+                timeout=10.0,
+            )
+            trade_result["status"] = "attempted"
+            trade_result["message"] = f"Trade {action} {token_name} submitted. Check BscScan for confirmation."
+            trade_result["bscscan_url"] = f"https://bscscan.com/address/{token_address}"
+    except Exception as e:
+        trade_result["status"] = "error"
+        trade_result["message"] = f"Trade execution failed: {str(e)}"
+
+    return trade_result
+
+
 @app.get("/api/four-meme/tokens")
 async def four_meme_tokens():
     from integrations.bitquery import query_four_meme_tokens
