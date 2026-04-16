@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { AgentData, GenerationStats } from "@/lib/types";
+import { LiveAnalysis } from "./LiveAnalysis";
 
 interface EvolutionResultsProps {
   topAgents: AgentData[];
@@ -300,6 +301,7 @@ function DeployModal({ agent, totalGenerations, onClose }: { agent: AgentData; t
 
 function ChampionCard({ agent, totalGenerations }: { agent: AgentData; totalGenerations: number }) {
   const [showDeploy, setShowDeploy] = useState(false);
+  const [showLiveAnalysis, setShowLiveAnalysis] = useState(false);
   const strategy = getDominantStrategy(agent.genome as unknown as Record<string, number>);
   const roi = ((agent.balance - 100) / 100) * 100;
 
@@ -355,7 +357,7 @@ function ChampionCard({ agent, totalGenerations }: { agent: AgentData; totalGene
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-2">
           <button
             onClick={() => downloadGenome(agent)}
             className="flex-1 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-mono text-xs font-bold hover:bg-emerald-500/20 transition-colors"
@@ -375,6 +377,13 @@ function ChampionCard({ agent, totalGenerations }: { agent: AgentData; totalGene
             Deploy to Four.meme
           </button>
         </div>
+        <button
+          onClick={() => setShowLiveAnalysis(true)}
+          className="w-full py-2 rounded-lg border border-red-500/40 bg-red-500/10 text-red-400 font-mono text-xs font-bold hover:bg-red-500/20 transition-colors"
+          style={{ textShadow: "0 0 8px rgba(239,68,68,0.4)" }}
+        >
+          Analyze Live Market
+        </button>
       </div>
 
       {showDeploy && (
@@ -382,6 +391,14 @@ function ChampionCard({ agent, totalGenerations }: { agent: AgentData; totalGene
           agent={agent}
           totalGenerations={totalGenerations}
           onClose={() => setShowDeploy(false)}
+        />
+      )}
+
+      {showLiveAnalysis && (
+        <LiveAnalysis
+          agent={agent}
+          totalGenerations={totalGenerations}
+          onClose={() => setShowLiveAnalysis(false)}
         />
       )}
     </>

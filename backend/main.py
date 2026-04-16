@@ -7,7 +7,7 @@ import os
 import openai
 import socketio
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.agent import Action, Agent, ActionType
@@ -290,6 +290,122 @@ async def run_simulation():
     finally:
         sim_running = False
         await sio.emit("sim_stopped", {})
+
+
+async def get_real_tokens():
+    """Try to fetch real Four.meme tokens via Bitquery."""
+    try:
+        from integrations.bitquery import query_four_meme_tokens
+        raw = await query_four_meme_tokens(limit=10)
+        tokens = []
+        seen: set[str] = set()
+        for item in raw:
+            trade = item.get("Trade", {})
+            currency = trade.get("Currency", {})
+            name = currency.get("Name", "Unknown")
+            symbol = currency.get("Symbol", "???")
+            if symbol in seen:
+                continue
+            seen.add(symbol)
+            tokens.append({
+                "name": name,
+                "symbol": symbol,
+                "price": float(trade.get("Price", 0)),
+                "volume_24h": float(trade.get("Amount", 0)),
+                "holders": 0,
+                "progress": 0,
+                "trend": "unknown",
+                "address": currency.get("SmartContract", ""),
+            })
+        return tokens if tokens else None
+    except Exception:
+        return None
+
+
+@app.post("/api/analyze")
+async def analyze_market(request: Request):
+    """Let an evolved champion analyze real Four.meme market."""
+    body = await request.json()
+    genome = body.get("genome", {})
+    agent_name = body.get("agent_name", "Champion")
+
+    # Get real tokens (or mock if no API key)
+    tokens = await get_real_tokens()
+
+    if not tokens:
+        # Mock data for demo
+        tokens = [
+            {"name": "DOGGO", "symbol": "DOGGO", "price": 0.00234, "volume_24h": 12500, "holders": 45, "progress": 67, "trend": "up"},
+            {"name": "MOONCAT", "symbol": "MOON", "price": 0.00891, "volume_24h": 45000, "holders": 120, "progress": 91, "trend": "up"},
+            {"name": "PEPE3.0", "symbol": "PEPE3", "price": 0.00012, "volume_24h": 800, "holders": 8, "progress": 5, "trend": "down"},
+            {"name": "WOJAK", "symbol": "WOJAK", "price": 0.00156, "volume_24h": 5600, "holders": 32, "progress": 42, "trend": "flat"},
+            {"name": "SHIBKING", "symbol": "SHIB2", "price": 0.00567, "volume_24h": 28000, "holders": 89, "progress": 78, "trend": "up"},
+        ]
+
+    # Build analysis prompt using champion's genome
+    genome_desc = "\n".join(
+        f"- {k}: {v:.2f}" if isinstance(v, float) else f"- {k}: {v}"
+        for k, v in genome.items() if k != "theme_vector"
+    )
+
+    tokens_desc = "\n".join(
+        f"- {t['name']} ({t['symbol']}): price=${t['price']}, 24h_vol=${t.get('volume_24h', 0)}, holders={t.get('holders', 0)}, bonding_progress={t.get('progress', 0)}%, trend={t.get('trend', 'unknown')}"
+        for t in tokens
+    )
+
+    prompt = f"""You are {agent_name}, an AI meme token trading champion whose strategy was evolved through natural selection in the Darwin.meme arena.
+
+Your evolved genome (personality parameters):
+{genome_desc}
+
+You are now analyzing REAL tokens on Four.meme (BNB Chain). Here are the current live tokens:
+
+{tokens_desc}
+
+For each token, give your analysis based on your evolved personality:
+1. Signal: BUY / SELL / WAIT / SKIP
+2. Confidence: 0-100%
+3. Reasoning: Why, based on your specific genome traits
+4. If BUY, recommended position size based on your position_size parameter
+
+Respond in JSON format:
+{{
+  "analysis": [
+    {{
+      "token": "NAME",
+      "signal": "BUY|WAIT|SKIP",
+      "confidence": 85,
+      "reasoning": "...",
+      "position_pct": 0.35
+    }}
+  ],
+  "overall_strategy": "One sentence summary of your market outlook"
+}}"""
+
+    c = get_client()
+    try:
+        response = await c.chat.completions.create(
+            model=current_config.llm_model,
+            max_tokens=800,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        import json as _json
+        raw = response.choices[0].message.content or "{}"
+        # Try to parse JSON from response
+        text = raw.strip()
+        if "```" in text:
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start >= 0 and end > start:
+                text = text[start:end]
+        try:
+            result = _json.loads(text)
+        except Exception:
+            result = {"analysis": [], "overall_strategy": raw, "raw": raw}
+
+        return {"tokens": tokens, "result": result, "agent_name": agent_name}
+    except Exception as e:
+        return {"tokens": tokens, "result": {"analysis": [], "overall_strategy": f"Analysis error: {e}"}, "agent_name": agent_name}
 
 
 @app.get("/api/four-meme/tokens")
