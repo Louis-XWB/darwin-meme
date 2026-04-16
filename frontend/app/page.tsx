@@ -13,9 +13,16 @@ import { LandingPage } from "@/components/landing/LandingPage";
 /* ── Dashboard (existing) ── */
 export default function Dashboard() {
   const [launched, setLaunched] = useState(false);
-  const { state, startSimulation, stopSimulation, setSpeed } = useSimulation();
+  const { state, startSimulation, stopSimulation, setSpeed, updateSettings } = useSimulation();
   const [view, setView] = useState<"data" | "game">("data");
   const prevGeneration = useRef(0);
+  const [settings, setSettings] = useState({
+    population_size: 20,
+    ticks_per_epoch: 50,
+    max_generations: 100,
+    mutation_rate: 0.1,
+    llm_model: "glm-4-flash",
+  });
 
   if (state.generation !== prevGeneration.current && state.generation > 0) {
     prevGeneration.current = state.generation;
@@ -34,10 +41,12 @@ export default function Dashboard() {
         tick={state.tick}
         speed={state.speed}
         view={view}
+        settings={settings}
         onStart={startSimulation}
         onStop={stopSimulation}
         onSpeedChange={setSpeed}
         onViewChange={setView}
+        onSettingsChange={(s) => { setSettings(s); updateSettings(s); }}
       />
 
       {view === "data" ? (

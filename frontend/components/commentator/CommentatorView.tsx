@@ -40,8 +40,22 @@ export function CommentatorView({ commentary, summaries, generation }: Commentat
         ))}
 
         {commentary.length === 0 && summaries.length === 0 && (
-          <div className="text-center text-gray-600 py-8 text-sm">
-            Commentary will appear during simulation...
+          <div className="space-y-3">
+            <div className="text-center py-3">
+              <div className="text-2xl mb-2">🤖</div>
+              <div className="text-sm text-gray-400 font-medium mb-1">AI Commentator</div>
+              <div className="text-xs text-gray-600">Live play-by-play commentary on evolution</div>
+            </div>
+            {[
+              "\"Agent Alpha makes a bold move, buying DOGGO at the dip...\"",
+              "\"Generation 5 sees the emergence of a new contrarian strategy...\"",
+              "\"The Panic Hunter archetype dominates this epoch!\""
+            ].map((text, i) => (
+              <div key={i} className="text-xs text-gray-700 border-l-2 border-gray-800 pl-3 py-0.5 opacity-40 italic">
+                {text}
+              </div>
+            ))}
+            <div className="text-[10px] text-gray-700 text-center mt-2">AI narrates every trade and evolution event</div>
           </div>
         )}
       </div>

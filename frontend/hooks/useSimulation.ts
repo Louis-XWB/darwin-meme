@@ -118,5 +118,16 @@ export function useSimulation() {
     setState((s) => ({ ...s, speed }));
   }, []);
 
-  return { state, startSimulation, stopSimulation, setSpeed };
+  const updateSettings = useCallback((settings: {
+    population_size: number;
+    ticks_per_epoch: number;
+    max_generations: number;
+    mutation_rate: number;
+    llm_model: string;
+  }) => {
+    const socket = getSocket();
+    socket.emit("update_settings", settings);
+  }, []);
+
+  return { state, startSimulation, stopSimulation, setSpeed, updateSettings };
 }

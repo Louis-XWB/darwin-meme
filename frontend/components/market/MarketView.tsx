@@ -44,8 +44,26 @@ export function MarketView({ tokens, trades, events }: MarketViewProps) {
       </div>
 
       {tokens.length === 0 && (
-        <div className="text-center text-gray-600 py-8 text-sm">
-          Waiting for agents to create tokens...
+        <div className="space-y-4">
+          <div className="text-center py-4">
+            <div className="text-2xl mb-2">📈</div>
+            <div className="text-sm text-gray-400 font-medium mb-1">Token Market</div>
+            <div className="text-xs text-gray-600">Meme tokens created by AI agents will appear here</div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {["DOGGO", "MOONCAT", "PEPE2.0", "WOJAK"].map((name) => (
+              <div key={name} className="border border-gray-800/50 rounded-lg p-3 opacity-30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-xs text-gray-500">{name}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-600">preview</span>
+                </div>
+                <div className="w-full bg-gray-800/50 rounded-full h-1.5">
+                  <div className="bg-gray-700 h-1.5 rounded-full" style={{ width: `${(name.length * 13 + 10) % 60 + 10}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="text-[10px] text-gray-700 text-center">Start evolution to see live trading</div>
         </div>
       )}
 
