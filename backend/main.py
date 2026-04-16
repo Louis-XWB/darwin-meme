@@ -505,6 +505,105 @@ async def execute_trade(request: Request):
     return trade_result
 
 
+@app.post("/api/distill-wallet")
+async def distill_wallet(request: Request):
+    """Distill a BSC wallet's trading history into a 25-dimension genome."""
+    body = await request.json()
+    wallet = body.get("address", "").strip()
+
+    if not wallet:
+        return {"error": "No wallet address provided"}
+
+    # Fetch wallet token transactions from BSCScan
+    trades = []
+    try:
+        async with httpx.AsyncClient() as http:
+            resp = await http.get(
+                f"https://api.bscscan.com/api?module=account&action=tokentx&address={wallet}&startblock=0&endblock=99999999&sort=desc&offset=50&page=1",
+                timeout=10.0,
+            )
+            data = resp.json()
+            if data.get("status") == "1":
+                trades = data.get("result", [])[:50]
+    except Exception:
+        pass
+
+    # Build analysis prompt
+    if trades:
+        trade_summary = []
+        for t in trades[:30]:
+            trade_summary.append(
+                f"Token: {t.get('tokenName','?')}, From: {t.get('from','')[:10]}, "
+                f"To: {t.get('to','')[:10]}, Value: {t.get('value','0')[:10]}"
+            )
+        trades_text = "\n".join(trade_summary)
+    else:
+        trades_text = (
+            "No on-chain trading data found for this wallet. "
+            "Generate a plausible genome based on a typical meme trader."
+        )
+
+    prompt = f"""Analyze this BSC wallet's trading behavior and distill it into a Darwin.meme genome.
+
+Wallet: {wallet}
+
+Transaction history:
+{trades_text}
+
+Based on the trading patterns, generate a 25-dimension genome that represents this trader's personality.
+
+Respond ONLY with a JSON object in this exact format:
+{{
+  "genome": {{
+    "risk_appetite": 0.0-1.0,
+    "entry_threshold": 0.0-1.0,
+    "exit_threshold": 0.0-1.0,
+    "position_size": 0.1-0.5,
+    "max_holdings": 1-10,
+    "graduation_bias": 0.0-1.0,
+    "creation_frequency": 0.0-1.0,
+    "theme_vector": [8 floats 0-1],
+    "naming_style": 0-4,
+    "hype_intensity": 0.0-1.0,
+    "follow_leader": 0.0-1.0,
+    "contrarian": 0.0-1.0,
+    "herd_sensitivity": 0.0-1.0,
+    "cooperation": 0.0-1.0,
+    "experiment_rate": 0.0-1.0,
+    "adaptation_speed": 0.0-1.0,
+    "memory_weight": 0.0-1.0,
+    "exploration_vs_exploit": 0.0-1.0
+  }},
+  "strategy_label": "Aggressive|Follower|Creator|Contrarian|Experimenter",
+  "description": "2-3 sentence personality description",
+  "traits": ["trait1", "trait2", "trait3"]
+}}"""
+
+    c = get_client()
+    try:
+        response = await c.chat.completions.create(
+            model=current_config.llm_model,
+            max_tokens=600,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.choices[0].message.content or "{}"
+        text = raw.strip()
+        if "```json" in text:
+            text = text.split("```json", 1)[1]
+        if "```" in text:
+            text = text.split("```", 1)[0]
+        text = text.strip()
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            text = text[start:end]
+        import json as _json
+        result = _json.loads(text)
+        return {"wallet": wallet, "result": result, "trade_count": len(trades)}
+    except Exception as e:
+        return {"wallet": wallet, "error": str(e), "trade_count": len(trades)}
+
+
 @app.get("/api/four-meme/tokens")
 async def four_meme_tokens():
     from integrations.bitquery import query_four_meme_tokens

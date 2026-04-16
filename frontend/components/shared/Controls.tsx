@@ -16,12 +16,12 @@ interface ControlsProps {
   generation: number;
   tick: number;
   speed: number;
-  view: "data" | "game";
+  view: "data" | "game" | "lab";
   settings: SettingsData;
   onStart: (speed: number) => void;
   onStop: () => void;
   onSpeedChange: (speed: number) => void;
-  onViewChange: (view: "data" | "game") => void;
+  onViewChange: (view: "data" | "game" | "lab") => void;
   onSettingsChange: (settings: SettingsData) => void;
 }
 
@@ -79,6 +79,16 @@ export function Controls({
           }`}
         >
           Terminal
+        </button>
+        <button
+          onClick={() => onViewChange("lab")}
+          className={`px-2 py-1 text-xs rounded ${
+            view === "lab"
+              ? "bg-cyan-600 text-white"
+              : "text-gray-500 hover:text-gray-300"
+          }`}
+        >
+          Genome Lab
         </button>
       </div>
 

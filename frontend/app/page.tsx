@@ -8,6 +8,7 @@ import { LeaderboardView } from "@/components/leaderboard/LeaderboardView";
 import { EvolutionView } from "@/components/evolution/EvolutionView";
 import { CommentatorView } from "@/components/commentator/CommentatorView";
 import { GameView } from "@/components/game/GameView";
+import { GenomeLab } from "@/components/genome-lab/GenomeLab";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { EvolutionResults } from "@/components/results/EvolutionResults";
 
@@ -15,7 +16,7 @@ import { EvolutionResults } from "@/components/results/EvolutionResults";
 export default function Dashboard() {
   const [launched, setLaunched] = useState(false);
   const { state, startSimulation, stopSimulation, setSpeed, updateSettings, dismissResults, restartSimulation } = useSimulation();
-  const [view, setView] = useState<"data" | "game">("data");
+  const [view, setView] = useState<"data" | "game" | "lab">("data");
   const prevGeneration = useRef(0);
   const [settings, setSettings] = useState({
     population_size: 20,
@@ -50,7 +51,11 @@ export default function Dashboard() {
         onSettingsChange={(s) => { setSettings(s); updateSettings(s); }}
       />
 
-      {view === "data" ? (
+      {view === "lab" ? (
+        <div className="flex-1 overflow-auto">
+          <GenomeLab />
+        </div>
+      ) : view === "data" ? (
         <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-px bg-gray-800 overflow-hidden">
           <div className="bg-gray-950 overflow-auto p-4">
             <MarketView tokens={state.tokens} trades={state.trades} events={state.events} />
