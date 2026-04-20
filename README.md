@@ -1,5 +1,7 @@
 # Darwin.meme
 
+![Darwin.meme — AI Evolution Arena for Meme Tokens](docs/images/cover.png)
+
 ### What happens when you let AI evolve in a meme token economy for 100 generations?
 
 **🌐 Live Demo:** [**darwin-meme.vercel.app**](https://darwin-meme.vercel.app/) &nbsp;·&nbsp; **💻 Repository:** [github.com/Louis-XWB/darwin-meme](https://github.com/Louis-XWB/darwin-meme)
