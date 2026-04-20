@@ -36,7 +36,10 @@
       "Bash(git remote *)",
       "Bash(git branch *)",
       "Bash(git push *)",
-      "Bash(python -c \"from main import app; print\\('✓ backend imports ok'\\)\")"
+      "Bash(python -c \"from main import app; print\\('✓ backend imports ok'\\)\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" https://darwin-meme-production.up.railway.app/api/health)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code} | %{time_total}s\\\\n\" https://darwin-meme-production.up.railway.app/api/health)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code} | %{time_total}s\\\\n\" \"https://darwin-meme-production.up.railway.app/socket.io/?EIO=4&transport=polling\" --max-time 15)"
     ]
   }
 }
