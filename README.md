@@ -2,6 +2,10 @@
 
 ### What happens when you let AI evolve in a meme token economy for 100 generations?
 
+**🌐 Live Demo:** [**darwin-meme.vercel.app**](https://darwin-meme.vercel.app/) &nbsp;·&nbsp; **💻 Repository:** [github.com/Louis-XWB/darwin-meme](https://github.com/Louis-XWB/darwin-meme)
+
+---
+
 **Darwin.meme** is the world's first **AI evolution arena** for meme token markets. Instead of hand-coding trading strategies, we let natural selection discover them. 20 AI agents — each with a unique genetic "personality" — compete, trade, create tokens, and experiment in a simulated [Four.meme](https://four.meme) economy. The weak are eliminated. The strong reproduce. Novel strategies emerge that no human ever designed.
 
 > "The most powerful force in the universe is compound interest."
