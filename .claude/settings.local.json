@@ -26,7 +26,17 @@
       "Bash(curl -s -X POST http://localhost:8000/api/distill-wallet -H \"Content-Type: application/json\" -d '{\"address\":\"0x3e57efef507b4db7acfa2ee79ceca6b19e18d106\"}')",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('status:', 'ok' if 'result' in d else 'error'\\); print\\('strategy:', d.get\\('result',{}\\).get\\('strategy_label', d.get\\('error','?'\\)\\)\\)\")",
       "Bash(git filter-branch -f --env-filter ' *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git rm *)",
+      "Bash(git gc *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --index-filter 'git rm -rf --cached --ignore-unmatch \"frontend/public/assets/Ninja Adventure\"' --prune-empty -- --all)",
+      "Bash(git checkout *)",
+      "Bash(rm -rf .git/refs/original/)",
+      "Bash(git reflog *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(python -c \"from main import app; print\\('✓ backend imports ok'\\)\")"
     ]
   }
 }

@@ -489,7 +489,9 @@ export function GenomeLab() {
 
     try {
       const apiBase =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        process.env.NEXT_PUBLIC_API_URL ||
+        "http://localhost:8000";
       const resp = await fetch(`${apiBase}/api/distill-wallet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

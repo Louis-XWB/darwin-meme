@@ -27,14 +27,25 @@ from evolution.engine import EvolutionEngine
 from market.simulator import MarketSimulator
 
 app = FastAPI(title="Darwin.meme API")
+
+_allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "*").strip()
+_ALLOWED_ORIGINS = (
+    ["*"] if _allowed_origins_env == "*" else [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_origin_regex=os.environ.get("ALLOWED_ORIGIN_REGEX") or None,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+sio = socketio.AsyncServer(
+    async_mode="asgi",
+    cors_allowed_origins=_ALLOWED_ORIGINS if _ALLOWED_ORIGINS != ["*"] else "*",
+)
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 # Global state
@@ -58,7 +69,8 @@ def get_client() -> openai.AsyncOpenAI:
 def get_store() -> Store:
     global store
     if store is None:
-        store = Store()
+        db_path = os.environ.get("DATABASE_PATH", "darwin_meme.db")
+        store = Store(db_path=db_path)
     return store
 
 
@@ -666,7 +678,8 @@ async def update_settings(sid, data):
 
 
 def main():
-    uvicorn.run(socket_app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run(socket_app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
