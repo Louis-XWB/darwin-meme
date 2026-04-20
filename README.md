@@ -230,7 +230,14 @@ tests/test_narrator.py     3 tests   AI commentary generation
 ```bash
 cd backend
 pip install -e ".[dev]"
-export ANTHROPIC_API_KEY=your_key_here
+
+# Option A — OpenAI
+export OPENAI_API_KEY=sk-...
+
+# Option B — Zhipu (GLM, OpenAI-compatible)
+export OPENAI_BASE_URL="https://open.bigmodel.cn/api/paas/v4"
+export OPENAI_API_KEY=your_zhipu_key
+
 python main.py
 # Server running at http://localhost:8000
 ```
@@ -255,6 +262,23 @@ cd backend && python -m pytest tests/ -v
 
 ---
 
+## Feature Highlights
+
+### 🧬 Genome Lab — Distill any BSC wallet into a trading personality
+A dedicated page that (1) showcases 6 famous Chinese meme traders (**0xSun, 王小二, D哥, 枯坐, 奶牛, 阿峰**) as pre-distilled genomes, and (2) lets you paste any BSC wallet address and watch the AI distill its on-chain trading history into a 25-dimension genome you can save, name, and use for market analysis.
+
+### 🔴 Live Analysis — Let your champion trade live on Four.meme
+One-click drop the winning genome (or any KOL) into a Bloomberg-style terminal that pulls **real tokens from the Four.meme public API** (Hot / New / Volume / Near-Grad / Market Cap / Recent), asks the LLM to score each one from that personality's perspective, and surfaces BUY / WAIT / SELL signals with confidence and reasoning. Optional `Execute Trade` button wired to the Four.meme trading endpoint (no-op if no wallet configured).
+
+### 🏆 Evolution Results — Export the winner
+When the experiment concludes, the champion's genome can be exported as:
+- **Raw JSON** — the 25 parameters for programmatic use
+- **Trading Skill (`.md`)** — a ready-to-use LLM system prompt describing the agent's personality, entry/exit rules, creation preferences, and provenance in natural language
+
+Both formats are designed to drop directly into Four.meme's Agentic Mode.
+
+---
+
 ## Four.meme Integration
 
 Darwin.meme is purpose-built for the Four.meme ecosystem:
@@ -263,8 +287,10 @@ Darwin.meme is purpose-built for the Four.meme ecosystem:
 |---------|---------------|
 | **Bonding Curve** | Exact replication of Four.meme's pricing formula |
 | **Graduation** | Tokens "graduate" at 24 unit threshold (= 24 BNB) |
-| **Market Data** | Bitquery GraphQL API for real Four.meme token data |
-| **Agentic Mode** | Evolved strategies exportable as JSON for deployment |
+| **Live Market Data** | Direct `/meme-api/v1/public/token/search` — no middleman, no API key |
+| **Agentic Mode** | Evolved strategies exportable as JSON + trading skill markdown |
+| **Trade Execution** | `/api/trade` endpoint that wraps Four.meme's trade API |
+| **Wallet Distillation** | BSCScan + LLM pipeline that reverse-engineers a genome from transaction history |
 | **Smart Contract** | Targets `0x5c952063c7fc8610ffdb798152d69f0b9550762b` |
 
 ### Strategy Export
@@ -305,14 +331,23 @@ darwin-meme/
 │   ├── market/          # BondingCurve, Token, Simulator, Events
 │   ├── evolution/       # Fitness, Operators, Engine
 │   ├── commentator/     # AI Narrator
-│   ├── integrations/    # Bitquery / Four.meme
+│   ├── integrations/    # Four.meme API client
 │   ├── data/            # SQLite Store
 │   ├── tests/           # 66 unit tests
 │   ├── config.py        # All tunable parameters
-│   └── main.py          # FastAPI + WebSocket server
+│   └── main.py          # FastAPI + WebSocket server + /api/analyze, /api/trade, /api/distill-wallet
 ├── frontend/
-│   ├── app/             # Next.js pages
-│   ├── components/      # Market, Leaderboard, Evolution, Commentator
+│   ├── app/             # Next.js pages (landing + dashboard + lab + terminal)
+│   ├── components/
+│   │   ├── landing/     # 3D Three.js hero
+│   │   ├── market/      # Token cards + trade feed
+│   │   ├── leaderboard/ # Agent ranking + radar chart
+│   │   ├── evolution/   # Fitness chart, strategy scatter, gene drift
+│   │   ├── commentator/ # AI commentary feed
+│   │   ├── game/        # Terminal view (Bloomberg-style)
+│   │   ├── genome-lab/  # KOL genomes + wallet distiller
+│   │   ├── results/     # Evolution results + Live Analysis
+│   │   └── shared/      # Controls bar + reusable UI
 │   ├── hooks/           # useSimulation (WebSocket state)
 │   └── lib/             # Types, socket client
 └── docs/
