@@ -67,6 +67,38 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
     return () => observer.disconnect();
   }, []);
 
+  /* ── Scroll progress + chapter indicator ── */
+  useEffect(() => {
+    const fill = document.querySelector<HTMLDivElement>(".landing-scroll-progress-fill");
+    const chapterNum = document.querySelector<HTMLSpanElement>(".landing-chapter-num");
+    const sectionIds = ["landing-hero", "landing-problem", "landing-how", "landing-agents", "landing-numbers", "landing-launch"];
+
+    const onScroll = () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = Math.min(1, Math.max(0, scrollTop / docHeight));
+      if (fill) fill.style.height = `${pct * 100}%`;
+
+      // Find active section
+      const vh = window.innerHeight;
+      const mid = scrollTop + vh / 2;
+      let active = 0;
+      for (let i = 0; i < sectionIds.length; i++) {
+        const sec = document.getElementById(sectionIds[i]);
+        if (!sec) continue;
+        const rect = sec.getBoundingClientRect();
+        const top = rect.top + scrollTop;
+        const bottom = top + rect.height;
+        if (mid >= top && mid < bottom) { active = i; break; }
+      }
+      if (chapterNum) chapterNum.textContent = String(active + 1).padStart(2, "0");
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   /* ── Counter observer for numbers section ── */
   useEffect(() => {
     const numbersSection = document.getElementById("landing-numbers");
@@ -400,13 +432,36 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
     { target: 20, label: "AI Agents", sub: '"competing in real-time"' },
     { target: 25, label: "Genome Dimensions", sub: '"shaping AI personality"' },
     { target: 100, label: "Generations", sub: '"of natural selection"' },
-    { target: 66, label: "Unit Tests", sub: '"production-grade code"' },
+    { target: 6, label: "KOL Genomes", sub: '"distilled from on-chain"' },
   ];
 
   return (
     <div className="relative" style={{ background: "#030712", color: "#fff" }}>
       {/* Three.js canvas container */}
       <div ref={canvasContainerRef} className="fixed inset-0 z-0" />
+
+      {/* Ambient film grain overlay */}
+      <div
+        aria-hidden
+        className="fixed inset-0 z-[1] pointer-events-none opacity-[0.04]"
+        style={{
+          background:
+            'url("data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22/></filter><rect width=%22120%22 height=%22120%22 filter=%22url(%23n)%22/></svg>")',
+          mixBlendMode: "overlay",
+        }}
+      />
+
+      {/* Scroll progress bar (left edge) */}
+      <div className="landing-scroll-progress" aria-hidden>
+        <div className="landing-scroll-progress-fill" />
+      </div>
+
+      {/* Corner chapter indicator */}
+      <div className="landing-chapter-indicator" aria-hidden>
+        <span className="landing-chapter-num">01</span>
+        <span className="landing-chapter-sep">/</span>
+        <span className="landing-chapter-total">06</span>
+      </div>
 
       {/* HTML content overlay */}
       <div
@@ -418,16 +473,75 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
         {/* ═══ HERO ═══ */}
         <section className="landing-section" id="landing-hero">
           <div className="landing-section-inner" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <div className="landing-hero-title">DARWIN.MEME</div>
-            <div className="landing-hero-subtitle">AI Evolution Arena</div>
+            {/* Live status pill */}
+            <div className="landing-live-pill">
+              <span className="landing-live-dot" />
+              <span className="landing-live-label">LIVE</span>
+              <span className="landing-live-sep">·</span>
+              <span className="landing-live-meta">BNB CHAIN</span>
+              <span className="landing-live-sep">·</span>
+              <span className="landing-live-meta">FOUR.MEME</span>
+              <span className="landing-live-sep">·</span>
+              <span className="landing-live-meta landing-live-ticker">GEN 0</span>
+            </div>
+
+            <h1 className="landing-hero-title" aria-label="Darwin.meme">
+              {"DARWIN.MEME".split("").map((ch, i) => (
+                <span
+                  key={i}
+                  className="landing-hero-char"
+                  style={{ animationDelay: `${0.08 + i * 0.06}s` }}
+                >
+                  {ch}
+                </span>
+              ))}
+            </h1>
+            <div className="landing-hero-subtitle">
+              <span className="landing-kern">A</span>
+              <span className="landing-kern">I</span>
+              <span style={{ width: 16, display: "inline-block" }} />
+              <span className="landing-kern">E</span>
+              <span className="landing-kern">V</span>
+              <span className="landing-kern">O</span>
+              <span className="landing-kern">L</span>
+              <span className="landing-kern">U</span>
+              <span className="landing-kern">T</span>
+              <span className="landing-kern">I</span>
+              <span className="landing-kern">O</span>
+              <span className="landing-kern">N</span>
+              <span style={{ width: 16, display: "inline-block" }} />
+              <span className="landing-kern">A</span>
+              <span className="landing-kern">R</span>
+              <span className="landing-kern">E</span>
+              <span className="landing-kern">N</span>
+              <span className="landing-kern">A</span>
+            </div>
             <p className="landing-hero-tagline">
-              Watch artificial intelligence discover trading strategies through
-              natural selection
+              Watch artificial intelligence discover trading strategies through{" "}
+              <span className="landing-tagline-gradient">natural selection</span>
             </p>
+
+            {/* Micro-stats strip under tagline */}
+            <div className="landing-hero-stats">
+              <div className="landing-hero-stat">
+                <span className="landing-hero-stat-value">20</span>
+                <span className="landing-hero-stat-label">Agents</span>
+              </div>
+              <div className="landing-hero-stat-sep" />
+              <div className="landing-hero-stat">
+                <span className="landing-hero-stat-value">25</span>
+                <span className="landing-hero-stat-label">Dimensions</span>
+              </div>
+              <div className="landing-hero-stat-sep" />
+              <div className="landing-hero-stat">
+                <span className="landing-hero-stat-value">∞</span>
+                <span className="landing-hero-stat-label">Generations</span>
+              </div>
+            </div>
           </div>
           <div className="landing-scroll-indicator animate-on-scroll stagger-5">
             <div className="landing-scroll-line" />
-            <span>SCROLL DOWN</span>
+            <span>SCROLL TO EVOLVE</span>
             <div className="landing-scroll-arrows">
               <span>&#8964;</span>
               <span>&#8964;</span>
@@ -631,22 +745,49 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
               <span>evolution?</span>
             </div>
             <div className="landing-btn-wrap animate-on-scroll stagger-2">
+              <div className="landing-btn-ring landing-btn-ring-1" />
+              <div className="landing-btn-ring landing-btn-ring-2" />
+              <div className="landing-btn-ring landing-btn-ring-3" />
               <div className="landing-btn-border" />
               <button className="landing-btn" onClick={handleLaunch}>
-                &#128640; LAUNCH EVOLUTION
+                <span className="landing-btn-icon">◆</span>
+                LAUNCH EVOLUTION
+                <span className="landing-btn-arrow">→</span>
               </button>
             </div>
             <p className="landing-launch-meta animate-on-scroll stagger-3">
-              Built for Four.meme AI Sprint Hackathon &bull; $50,000 Prize Pool
+              Powered by Four.meme &bull; Running on BNB Chain
             </p>
-            <div className="landing-tech-badges animate-on-scroll stagger-4">
-              <span className="landing-badge">Python</span>
-              <span className="landing-badge">Next.js</span>
-              <span className="landing-badge">Three.js</span>
-              <span className="landing-badge">OpenAI</span>
-            </div>
           </div>
         </section>
+      </div>
+
+      {/* Bottom live ticker */}
+      <div className="landing-ticker" aria-hidden>
+        <div className="landing-ticker-track">
+          {[
+            "EVOLVING ON BNB CHAIN",
+            "20 AGENTS · 25 GENES · ∞ GENERATIONS",
+            "REAL-TIME FOUR.MEME MARKET DATA",
+            "AI DISCOVERS — HUMANS DON'T DESIGN",
+            "NATURAL SELECTION IN THE MEME ECONOMY",
+            "ON-CHAIN GENOME DISTILLATION",
+          ]
+            .concat([
+              "EVOLVING ON BNB CHAIN",
+              "20 AGENTS · 25 GENES · ∞ GENERATIONS",
+              "REAL-TIME FOUR.MEME MARKET DATA",
+              "AI DISCOVERS — HUMANS DON'T DESIGN",
+              "NATURAL SELECTION IN THE MEME ECONOMY",
+              "ON-CHAIN GENOME DISTILLATION",
+            ])
+            .map((t, i) => (
+              <span key={i} className="landing-ticker-item">
+                <span className="landing-ticker-star">◆</span>
+                {t}
+              </span>
+            ))}
+        </div>
       </div>
 
       {/* Flash overlay for launch transition */}

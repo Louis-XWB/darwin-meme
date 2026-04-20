@@ -11,7 +11,22 @@
       "WebFetch(domain:dorahacks.io)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"docs: add Darwin.meme design spec:*)"
+      "Bash(git commit -m \"docs: add Darwin.meme design spec:*)",
+      "Bash(lsof -ti:8000)",
+      "Bash(xargs kill *)",
+      "Bash(lsof -ti:3000)",
+      "Bash(npm run *)",
+      "Bash(curl -s https://open.bigmodel.cn/api/paas/v4/chat/completions -H 'Authorization: Bearer 7f7b415773b64d8295e38124340329f2.ZCBb6R4gm2GzfjbS' -H 'Content-Type: application/json' -d '{\"model\":\"glm-4-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":5}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/distill-wallet -H 'Content-Type: application/json' -d '{\"address\":\"0x3e57efef507b4db7acfa2ee79ceca6b19e18d106\"}')",
+      "Bash(curl -s http://localhost:8000/api/health)",
+      "Bash(python3 -c \"import os; os.chdir\\('/Users/weibin/job/hackathon/four_hackason/backend'\\); from config import CONFIG; print\\('llm_model:', CONFIG.llm_model\\)\")",
+      "Bash(export OPENAI_BASE_URL=\"https://open.bigmodel.cn/api/paas/v4\")",
+      "Bash(export OPENAI_API_KEY=\"7f7b415773b64d8295e38124340329f2.ZCBb6R4gm2GzfjbS\")",
+      "Bash(python main.py)",
+      "Bash(curl -s -X POST http://localhost:8000/api/distill-wallet -H \"Content-Type: application/json\" -d '{\"address\":\"0x3e57efef507b4db7acfa2ee79ceca6b19e18d106\"}')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('status:', 'ok' if 'result' in d else 'error'\\); print\\('strategy:', d.get\\('result',{}\\).get\\('strategy_label', d.get\\('error','?'\\)\\)\\)\")",
+      "Bash(git filter-branch -f --env-filter ' *)",
+      "Bash(git commit *)"
     ]
   }
 }

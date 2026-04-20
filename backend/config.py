@@ -47,7 +47,7 @@ class SimConfig:
     mutation_std: float = 0.1
 
     # LLM
-    llm_model: str = "claude-sonnet-4-6"
+    llm_model: str = "glm-4-flash"
 
 
 CONFIG = SimConfig()

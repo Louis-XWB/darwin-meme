@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { AgentData, Genome } from "@/lib/types";
+import { LiveAnalysis } from "@/components/results/LiveAnalysis";
 
 /* ── Genome shape (all 25 dimensions) ── */
 interface DistilledGenome {
@@ -64,12 +66,12 @@ const KOLS: KOL[] = [
     },
   },
   {
-    name: "CZ (赵长鹏)",
-    title: "BNB Chain 教父",
-    avatar: "\u{1F451}",
+    name: "王小二",
+    title: "BSC 老炮",
+    avatar: "\u{1F3AF}",
     strategy: "Creator",
     description:
-      "Binance 创始人。一条推文就能让整个 BSC meme 市场疯狂。BNB meme 季的幕后推手，发了个 4 的 meme 直接引爆 Four.meme。",
+      "BSC 圈老玩家，擅长造梗、建社群、操盘叙事。自己发币、自己推，一张图能带飞一个项目。玩的是情绪和节奏。",
     genome: {
       risk_appetite: 0.6,
       entry_threshold: 0.5,
@@ -92,9 +94,9 @@ const KOLS: KOL[] = [
     },
   },
   {
-    name: "潜水观察员",
-    title: "Alpha 猎手",
-    avatar: "\u{1F93F}",
+    name: "D 哥",
+    title: "Alpha 信息差玩家",
+    avatar: "\u{1F52C}",
     strategy: "Experimenter",
     description:
       "专门挖掘早期项目的 Alpha 信息。在别人还没注意到之前就入场，靠信息差赚钱。80% 的项目会归零，但 20% 能翻百倍。",
@@ -120,12 +122,12 @@ const KOLS: KOL[] = [
     },
   },
   {
-    name: "跟单侠",
-    title: "聪明钱追踪者",
+    name: "枯坐",
+    title: "聪明钱跟单者",
     avatar: "\u{1F575}\u{FE0F}",
     strategy: "Follower",
     description:
-      "用 GMGN 和 Ave.ai 追踪鲸鱼钱包，大户买什么他跟什么。从不自己做判断，只跟最赚钱的地址。胜率稳定 60%+。",
+      "用 GMGN 和 Ave.ai 盯 BSC 鲸鱼钱包，大户买什么他跟什么。从不自己判断，只跟最赚钱的地址。胜率稳定 60%+。",
     genome: {
       risk_appetite: 0.4,
       entry_threshold: 0.55,
@@ -148,12 +150,12 @@ const KOLS: KOL[] = [
     },
   },
   {
-    name: "钻石手老王",
-    title: "永不割肉",
+    name: "奶牛",
+    title: "逆向抄底王",
     avatar: "\u{1F48E}",
     strategy: "Contrarian",
     description:
-      "币圈老韭菜，但从不割肉。别人恐慌他抄底，别人 FOMO 他不动。经历了 10 次 rug pull 还在盈利。信仰是他最大的武器。",
+      "币圈老韭菜，从不追高。别人恐慌他抄底，别人 FOMO 他不动。经历了 10 次 rug pull 还在盈利。信仰是他最大的武器。",
     genome: {
       risk_appetite: 0.85,
       entry_threshold: 0.15,
@@ -176,12 +178,12 @@ const KOLS: KOL[] = [
     },
   },
   {
-    name: "毕业猎人",
-    title: "Bonding Curve 专家",
+    name: "阿峰",
+    title: "毕业盘玩家",
     avatar: "\u{1F393}",
     strategy: "Graduation Hunter",
     description:
-      "只买进度 70%+ 的 token，等毕业上 PancakeSwap 的那一波拉升。快进快出，单笔 2-3 倍收益。纪律性极强。",
+      "Four.meme 毕业盘专家。只买进度 70%+ 的 token，等毕业上 PancakeSwap 的那一波拉升。快进快出，单笔 2-3 倍收益。纪律性极强。",
     genome: {
       risk_appetite: 0.5,
       entry_threshold: 0.7,
@@ -284,7 +286,15 @@ function FullGenomePanel({ genome }: { genome: DistilledGenome }) {
 }
 
 /* ── KOL Card ── */
-function KOLCard({ kol }: { kol: KOL }) {
+function KOLCard({
+  kol,
+  onUse,
+  onRemove,
+}: {
+  kol: KOL;
+  onUse: (kol: KOL) => void;
+  onRemove?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const colorClass =
     STRATEGY_COLORS[kol.strategy] ||
@@ -308,6 +318,15 @@ function KOLCard({ kol }: { kol: KOL }) {
             {kol.strategy}
           </span>
         </div>
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            className="text-gray-600 hover:text-red-400 text-xs px-1"
+            title="Remove from lab"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Description */}
@@ -335,10 +354,11 @@ function KOLCard({ kol }: { kol: KOL }) {
 
       {/* Use genome button */}
       <button
+        onClick={() => onUse(kol)}
         className="mt-auto pt-3 w-full py-1.5 text-xs font-mono rounded border border-emerald-500/30
                       text-emerald-400 hover:bg-emerald-500/10 transition-colors"
       >
-        Use This Genome
+        Use This Genome →
       </button>
     </div>
   );
@@ -408,6 +428,25 @@ function DistillResultPanel({
   );
 }
 
+/* ── Convert KOL to AgentData for LiveAnalysis ── */
+function kolToAgent(kol: KOL): AgentData {
+  return {
+    agent_id: `kol_${kol.name}`,
+    name: kol.name,
+    genome: kol.genome as unknown as Genome,
+    balance: 100,
+    generation: 0,
+    parent_ids: [],
+    holdings: {},
+    created_tokens: [],
+    action_history: [],
+    strategy_notes: [],
+    alive: true,
+  };
+}
+
+const CUSTOM_KOLS_KEY = "darwin_meme_custom_kols";
+
 /* ── Main GenomeLab component ── */
 export function GenomeLab() {
   const [wallet, setWallet] = useState("");
@@ -418,6 +457,26 @@ export function GenomeLab() {
     trade_count: number;
   } | null>(null);
   const [error, setError] = useState("");
+  const [customKols, setCustomKols] = useState<KOL[]>([]);
+  const [aliasName, setAliasName] = useState("");
+  const [addSuccess, setAddSuccess] = useState("");
+  const [activeAgent, setActiveAgent] = useState<AgentData | null>(null);
+
+  // Load custom KOLs from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CUSTOM_KOLS_KEY);
+      if (stored) setCustomKols(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  // Persist custom KOLs to localStorage
+  const persistCustomKols = (kols: KOL[]) => {
+    setCustomKols(kols);
+    try {
+      localStorage.setItem(CUSTOM_KOLS_KEY, JSON.stringify(kols));
+    } catch {}
+  };
 
   const distill = async () => {
     const addr = wallet.trim();
@@ -425,6 +484,8 @@ export function GenomeLab() {
     setLoading(true);
     setError("");
     setResult(null);
+    setAddSuccess("");
+    setAliasName("");
 
     try {
       const apiBase =
@@ -445,6 +506,31 @@ export function GenomeLab() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const addToLab = () => {
+    if (!result || !result.result) return;
+    const fallback = `${result.wallet.slice(0, 6)}...${result.wallet.slice(-4)}`;
+    const name = aliasName.trim() || fallback;
+    const newKol: KOL = {
+      name,
+      title: `${fallback} · ${result.trade_count} txns`,
+      avatar: "\u{1F9EC}",
+      strategy: result.result.strategy_label,
+      description: result.result.description,
+      genome: result.result.genome,
+    };
+    persistCustomKols([newKol, ...customKols.filter((k) => k.name !== name)]);
+    setAddSuccess(`Added "${name}" to lab`);
+    setTimeout(() => setAddSuccess(""), 2500);
+  };
+
+  const removeCustom = (name: string) => {
+    persistCustomKols(customKols.filter((k) => k.name !== name));
+  };
+
+  const handleUse = (kol: KOL) => {
+    setActiveAgent(kolToAgent(kol));
   };
 
   return (
@@ -476,10 +562,34 @@ export function GenomeLab() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {KOLS.map((kol) => (
-              <KOLCard key={kol.name} kol={kol} />
+              <KOLCard key={kol.name} kol={kol} onUse={handleUse} />
             ))}
           </div>
         </div>
+
+        {/* ── My Distilled Genomes ── */}
+        {customKols.length > 0 && (
+          <div className="mb-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-px flex-1 bg-gray-800" />
+              <h2 className="text-xs text-cyan-500 uppercase tracking-widest">
+                My Distilled Genomes ({customKols.length})
+              </h2>
+              <div className="h-px flex-1 bg-gray-800" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {customKols.map((kol) => (
+                <KOLCard
+                  key={kol.name}
+                  kol={kol}
+                  onUse={handleUse}
+                  onRemove={() => removeCustom(kol.name)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Wallet Genome Distiller Section ── */}
         <div>
@@ -518,7 +628,6 @@ export function GenomeLab() {
           {loading && (
             <div className="mt-8 text-center">
               <div className="inline-flex items-center gap-3 px-6 py-4 rounded-lg border border-emerald-500/20 bg-gray-900/60">
-                {/* Pulsing scanner effect */}
                 <div className="relative w-6 h-6">
                   <div className="absolute inset-0 rounded-full border-2 border-emerald-500/30 animate-ping" />
                   <div className="absolute inset-1 rounded-full border border-emerald-400 animate-pulse" />
@@ -548,6 +657,57 @@ export function GenomeLab() {
                 wallet={result.wallet}
                 tradeCount={result.trade_count}
               />
+
+              {/* Add to Lab panel */}
+              <div className="mt-4 border border-cyan-500/30 rounded-lg bg-gray-900/80 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-white font-mono">
+                      Save to Lab
+                    </h4>
+                    <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                      Give it a name so you can find it later.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={aliasName}
+                    onChange={(e) => setAliasName(e.target.value)}
+                    placeholder={`Alias (default: ${result.wallet.slice(0, 6)}...${result.wallet.slice(-4)})`}
+                    className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white
+                               font-mono placeholder:text-gray-600 focus:border-cyan-500 focus:outline-none"
+                    onKeyDown={(e) => e.key === "Enter" && addToLab()}
+                  />
+                  <button
+                    onClick={addToLab}
+                    className="px-4 py-2 text-xs font-mono font-bold rounded bg-cyan-600 hover:bg-cyan-500
+                               text-white transition-colors"
+                  >
+                    + Add to Lab
+                  </button>
+                  <button
+                    onClick={() => handleUse({
+                      name: aliasName.trim() || `${result.wallet.slice(0, 6)}...${result.wallet.slice(-4)}`,
+                      title: "Distilled",
+                      avatar: "\u{1F9EC}",
+                      strategy: result.result.strategy_label,
+                      description: result.result.description,
+                      genome: result.result.genome,
+                    })}
+                    className="px-4 py-2 text-xs font-mono font-bold rounded border border-emerald-500/40
+                               text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                  >
+                    Use Now →
+                  </button>
+                </div>
+                {addSuccess && (
+                  <p className="text-[11px] text-cyan-400 font-mono mt-2">
+                    ✓ {addSuccess}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -555,6 +715,15 @@ export function GenomeLab() {
         {/* Footer spacer */}
         <div className="h-12" />
       </div>
+
+      {/* Live Analysis overlay */}
+      {activeAgent && (
+        <LiveAnalysis
+          agent={activeAgent}
+          totalGenerations={0}
+          onClose={() => setActiveAgent(null)}
+        />
+      )}
     </div>
   );
 }
