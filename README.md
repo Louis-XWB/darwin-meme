@@ -4,7 +4,9 @@
 
 ### What happens when you let AI evolve in a meme token economy for 100 generations?
 
-**🌐 Live Demo:** [**darwin-meme.vercel.app**](https://darwin-meme.vercel.app/) &nbsp;·&nbsp; **💻 Repository:** [github.com/Louis-XWB/darwin-meme](https://github.com/Louis-XWB/darwin-meme)
+**🌐 Live Demo:** [**darwin-meme.vercel.app**](https://darwin-meme.vercel.app/) &nbsp;·&nbsp; **🎬 Video:** [**youtu.be/b8BDwcr6sU0**](https://youtu.be/b8BDwcr6sU0) &nbsp;·&nbsp; **💻 Repository:** [github.com/Louis-XWB/darwin-meme](https://github.com/Louis-XWB/darwin-meme)
+
+[![Watch the demo](https://img.youtube.com/vi/b8BDwcr6sU0/maxresdefault.jpg)](https://youtu.be/b8BDwcr6sU0)
 
 ---
 
